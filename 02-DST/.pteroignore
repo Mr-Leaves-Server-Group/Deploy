@@ -1,0 +1,6 @@
+# Ignore everything
+*
+
+# But include the /home/container/DoNotStarveTogether folder and its contents
+!/DoNotStarveTogether
+!/DoNotStarveTogether/**

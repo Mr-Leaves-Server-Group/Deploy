@@ -1,0 +1,6 @@
+# Ignore everything
+*
+
+# But include the /home/container/Pal/Saved folder and its contents
+!/Pal/Saved
+!/Pal/Saved/**
