@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.mr_leaves.mlsg.ad_forge.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "mlsg_ad_forge.refmap.json",
+  "mixins": [
+    "ServerSelectionListMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

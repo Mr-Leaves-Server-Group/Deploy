@@ -1,0 +1,22 @@
+modLoader="javafml"
+loaderVersion="[1,)" 
+license="MIT"
+
+[[mods]]
+modId="mlsg_ad_forge"
+version="1.0"
+displayName="莱莱云MLSG - 海量模组包一键开服"
+displayURL="https://mlsg.mr-leaves.com/store/index.php?rp=/store/minecraft"
+logoFile= "../mlsg_ad_logo.png"
+description='''
+专注海外市场！保姆级服务！
+海外华人开服的第一选择！
+'''
+authors="菜菜云MLSG"
+
+[[dependencies.mlsg_ad_forge]]
+    modId="forge"
+    mandatory=true
+    versionRange="[1,)"
+    ordering="NONE"
+    side="CLIENT"
