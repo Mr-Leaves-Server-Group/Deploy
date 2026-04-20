@@ -1,0 +1,15 @@
+# V Rising
+# Ignore everything
+*
+
+# Include save-data (V Rising official saves)
+!save-data
+!save-data/**
+
+# Include BepInEx config & plugins
+!BepInEx
+!BepInEx/**
+
+# Include server config
+!config
+!config/**

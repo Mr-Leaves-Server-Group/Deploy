@@ -1,0 +1,14 @@
+# 直接使用官方基底
+FROM ghcr.io/parkervcp/steamcmd:proton
+
+USER root
+
+COPY 03-Palworld/pal_auto_mods.sh    /usr/local/bin/
+COPY 00-Tools/7zz               /usr/local/bin/
+
+# 授权可执行
+RUN chmod +x /usr/local/bin/pal_auto_mods.sh \
+    && chmod +x /usr/local/bin/7zz
+
+USER container
+WORKDIR /home/container

@@ -1,0 +1,23 @@
+# 直接使用你们官方基底
+FROM ghcr.io/pelican-eggs/steamcmd:debian
+
+# 临时切换 root 安装 supervisor
+USER root
+
+# 安装 supervisor
+RUN apt-get update \
+    && apt-get install -y supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY 02-DST/supervisord.conf    /etc/supervisor/supervisord.conf
+COPY 02-DST/dst_auto_mods.sh    /usr/local/bin/
+COPY 00-Tools/7zz               /usr/local/bin/
+COPY 02-DST/warning.sh             /usr/local/bin/
+
+# 授权可执行
+RUN chmod +x /usr/local/bin/dst_auto_mods.sh \
+    && chmod +x /usr/local/bin/7zz \
+    && chmod +x /usr/local/bin/warning.sh
+
+USER container
+WORKDIR /home/container

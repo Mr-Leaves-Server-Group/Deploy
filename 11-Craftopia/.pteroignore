@@ -1,0 +1,7 @@
+# Craftopia
+# 忽略全部
+*
+
+# 只保留官方真实存档目录（唯一重要）
+!DedicatedServerSave
+!DedicatedServerSave/**

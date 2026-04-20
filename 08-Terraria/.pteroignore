@@ -1,0 +1,14 @@
+# Terraria
+# 忽略所有文件和目录
+*
+
+# 世界 + 角色存档
+!saves
+!saves/**
+
+# 模组文件
+!mods
+!mods/**
+
+# 服务器配置
+!serverconfig.txt

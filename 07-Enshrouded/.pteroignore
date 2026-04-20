@@ -1,0 +1,7 @@
+# Enshrouded
+# 忽略所有文件和目录
+*
+
+# 仅保留雾锁王国游戏存档（世界、角色数据）
+!savegame
+!savegame/**

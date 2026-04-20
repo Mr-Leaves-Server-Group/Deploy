@@ -1,0 +1,7 @@
+# Valheim
+# Ignore everything
+*
+
+# Include entire .config directory (recursive)
+!.config
+!.config/**

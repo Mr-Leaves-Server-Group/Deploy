@@ -1,0 +1,7 @@
+# 7 Days to Die
+# Ignore everything
+*
+
+# Include entire .local (saves + config all in here)
+!.local
+!.local/**

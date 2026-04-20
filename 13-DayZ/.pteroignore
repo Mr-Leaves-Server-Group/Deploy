@@ -1,0 +1,6 @@
+# DayZ
+# Ignore everything
+*
+
+!profiles
+!profiles/**

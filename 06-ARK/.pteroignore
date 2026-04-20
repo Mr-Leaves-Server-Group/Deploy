@@ -1,0 +1,8 @@
+# ARK
+# Ignore everything
+*
+
+# But include the ShooterGame directory and its contents
+!ShooterGame
+!ShooterGame/Saved
+!ShooterGame/Saved/**
