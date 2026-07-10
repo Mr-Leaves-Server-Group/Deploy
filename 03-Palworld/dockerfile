@@ -3,6 +3,13 @@ FROM ghcr.io/parkervcp/steamcmd:proton
 
 USER root
 
+# 新增：安装xvfb、SDL运行依赖，解决无头图形报错
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb \
+    libsdl2-2.0-0 \
+    libfreetype6 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY 03-Palworld/pal_auto_mods.sh    /usr/local/bin/
 COPY 00-Tools/7zz               /usr/local/bin/
 
