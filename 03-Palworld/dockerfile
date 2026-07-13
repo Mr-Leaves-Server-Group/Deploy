@@ -22,7 +22,9 @@ RUN         apt install -y --no-install-recommends \
                 libncurses6 \
                 dbus \
                 libgdiplus \
-                lib32gcc-s1
+                lib32gcc-s1 \
+                libfreetype6 \
+                libfreetype6:i386
 RUN         apt install -y \
                 alsa-tools \
                 libpulse0 \
@@ -40,9 +42,9 @@ RUN         apt install -y \
                 python3-setuptools \
                 tini \
                 file \
-                pipx
-                # 新增字体修复依赖
-                libfreetype6 libfreetype6:i386 fonts-wine fonts-dejavu-core
+                pipx \
+                fonts-wine \
+                fonts-dejavu-core
 
 # 下载安装最新 Proton GE (仅x86_64标准版，过滤aarch64/sha校验文件)
 # RUN curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest \
