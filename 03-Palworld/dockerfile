@@ -55,7 +55,7 @@ RUN         apt install -y \
 #     | xargs curl -sLOJ
 
 # 下载最新 Proton GE 10-33 (仅x86_64标准版，过滤aarch64/sha校验文件)
-RUN curl -sLOJ "$(curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/tags/GE-Proton8-32 | grep browser_download_url | cut -d\" -f4 | egrep .tar.gz)"
+RUN curl -sLOJ "$(curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/tags/GE-Proton10-34 | grep browser_download_url | cut -d\" -f4 | egrep .tar.gz)"
 RUN tar -xzf GE-Proton*.tar.gz -C /usr/local/bin/ --strip-components=1 \
     && rm GE-Proton*.*
 
