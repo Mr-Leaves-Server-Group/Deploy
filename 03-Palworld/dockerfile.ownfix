@@ -1,0 +1,103 @@
+# ---------------------------------------------
+# MLSG Steam Proton Palworld Server 整合镜像
+# Based ghcr.io/parkervcp/steamcmd:proton
+# ---------------------------------------------
+FROM        debian:bookworm-slim
+
+LABEL       author="Torsten Widmann" maintainer="info@goover.de"
+
+# ===================== 官方镜像系统依赖安装 =====================
+RUN         dpkg --add-architecture i386
+RUN         apt update
+RUN         apt install -y --no-install-recommends \
+                wget \
+                iproute2 \
+                gnupg2 \
+                software-properties-common \
+                libntlm0 \
+                winbind \
+                xvfb \
+                xauth \
+                libncurses5-dev:i386 \
+                libncurses6 \
+                dbus \
+                libgdiplus \
+                lib32gcc-s1 \
+                libfreetype6 \
+                libfreetype6:i386
+RUN         apt install -y \
+                alsa-tools \
+                libpulse0 \
+                pulseaudio \
+                libpulse-dev \
+                libasound2 \
+                libao-common \
+                gnutls-bin \
+                gnupg \
+                locales \
+                cabextract \
+                curl \
+                python3 \
+                python3-pip \
+                python3-setuptools \
+                tini \
+                file \
+                pipx \
+                fonts-wine \
+                fonts-dejavu-core
+
+# 下载安装最新 Proton GE (仅x86_64标准版，过滤aarch64/sha校验文件)
+# RUN curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest \
+#     | grep browser_download_url \
+#     | cut -d\" -f4 \
+#     | grep -E 'GE-Proton[0-9]+-[0-9]+\.tar\.gz$' \
+#     | head -1 \
+#     | xargs curl -sLOJ
+
+# 下载最新 Proton GE 10-33 (仅x86_64标准版，过滤aarch64/sha校验文件)
+RUN curl -sLOJ "$(curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/tags/GE-Proton10-34 | grep browser_download_url | cut -d\" -f4 | egrep .tar.gz)"
+RUN tar -xzf GE-Proton*.tar.gz -C /usr/local/bin/ --strip-components=1 \
+    && rm GE-Proton*.*
+
+# Proton dbus machine-id 修复
+RUN         rm -f /etc/machine-id
+RUN         dbus-uuidgen --ensure=/etc/machine-id
+RUN         rm /var/lib/dbus/machine-id
+RUN         dbus-uuidgen --ensure
+
+# 安装 protontricks、winetricks
+RUN         pipx install protontricks
+RUN	        wget -q -O /usr/sbin/winetricks https://raw.githubusercontent.com/pelican-eggs/winetricks/master/src/winetricks \
+            && chmod +x /usr/sbin/winetricks
+
+# 安装 rcon-cli
+RUN         cd /tmp/ \
+            && curl -sSL https://github.com/gorcon/rcon-cli/releases/download/v0.10.3/rcon-0.10.3-amd64_linux.tar.gz > rcon.tar.gz \
+            && tar xvf rcon.tar.gz \
+            && mv rcon-0.10.3-amd64_linux/rcon /usr/local/bin/
+
+# 创建运行用户 container
+RUN         useradd -m -d /home/container -s /bin/bash container
+
+# ===================== 你的自定义文件复制（root阶段操作） =====================
+COPY 03-Palworld/pal_auto_mods.sh    /usr/local/bin/
+COPY 00-Tools/7zz                   /usr/local/bin/
+
+# 赋予执行权限
+RUN chmod +x /usr/local/bin/pal_auto_mods.sh \
+    && chmod +x /usr/local/bin/7zz
+
+# ===================== entrypoint 替换为你本地03-Palworld/entrypoint.sh =====================
+# 复制你的入口脚本并归属container用户
+COPY --chown=container:container 03-Palworld/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# 切换运行用户、环境变量、工作目录
+USER        container
+ENV         USER=container HOME=/home/container
+WORKDIR     /home/container
+
+# 容器停止信号、tini入口、启动命令（完全对齐官方镜像）
+STOPSIGNAL  SIGINT
+ENTRYPOINT  ["/usr/bin/tini", "-g", "--"]
+CMD         ["/entrypoint.sh"]
