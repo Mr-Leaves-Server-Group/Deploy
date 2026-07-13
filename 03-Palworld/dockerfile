@@ -2,7 +2,7 @@
 # MLSG Steam Proton Palworld Server 整合镜像
 # Based ghcr.io/parkervcp/steamcmd:proton
 # ---------------------------------------------
-FROM        debian:trixie-slim
+FROM        debian:bookworm-slim
 
 LABEL       author="Torsten Widmann" maintainer="info@goover.de"
 
@@ -43,12 +43,15 @@ RUN         apt install -y \
                 pipx
 
 # 下载安装最新 Proton GE (仅x86_64标准版，过滤aarch64/sha校验文件)
-RUN curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest \
-    | grep browser_download_url \
-    | cut -d\" -f4 \
-    | grep -E 'GE-Proton[0-9]+-[0-9]+\.tar\.gz$' \
-    | head -1 \
-    | xargs curl -sLOJ
+# RUN curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest \
+#     | grep browser_download_url \
+#     | cut -d\" -f4 \
+#     | grep -E 'GE-Proton[0-9]+-[0-9]+\.tar\.gz$' \
+#     | head -1 \
+#     | xargs curl -sLOJ
+
+# 下载最新 Proton GE 10-33 (仅x86_64标准版，过滤aarch64/sha校验文件)
+RUN curl -sLOJ https://github.com/GloriousEggroll/proton-ge-custom/releases/download/GE-Proton10-33/GE-Proton10-33.tar.gz
 RUN tar -xzf GE-Proton*.tar.gz -C /usr/local/bin/ --strip-components=1 \
     && rm GE-Proton*.*
 
