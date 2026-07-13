@@ -2,7 +2,7 @@
 # MLSG Steam Proton Palworld Server 整合镜像
 # Based ghcr.io/parkervcp/steamcmd:proton
 # ---------------------------------------------
-FROM        debian:bookworm-slim
+FROM        debian:trixie-slim
 
 LABEL       author="Torsten Widmann" maintainer="info@goover.de"
 
