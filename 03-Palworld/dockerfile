@@ -1,5 +1,5 @@
 # 直接使用官方基底
-FROM ghcr.io/parkervcp/steamcmd:proton_8
+FROM ghcr.io/parkervcp/steamcmd:proton
 
 USER root
 
