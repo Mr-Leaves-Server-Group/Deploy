@@ -1,14 +1,94 @@
-# 直接使用官方基底
-FROM ghcr.io/parkervcp/steamcmd:proton
+# ---------------------------------------------
+# Steam Proton Palworld Server Image
+# 整合原版debian基底 + 你的自定义脚本
+# ---------------------------------------------
+FROM        debian:bookworm-slim
 
-USER root
+LABEL       author="KenRen98" maintainer="ken.ren98@gmail.com"
 
+# 开启i386架构
+RUN         dpkg --add-architecture i386
+
+# 安装系统依赖
+RUN         apt update && apt install -y --no-install-recommends \
+                wget \
+                iproute2 \
+                gnupg2 \
+                software-properties-common \
+                libntlm0 \
+                winbind \
+                xvfb \
+                xauth \
+                libncurses5-dev:i386 \
+                libncurses6 \
+                dbus \
+                libgdiplus \
+                lib32gcc-s1 \
+                alsa-tools \
+                libpulse0 \
+                pulseaudio \
+                libpulse-dev \
+                libasound2 \
+                libao-common \
+                gnutls-bin \
+                gnupg \
+                locales \
+                cabextract \
+                curl \
+                python3 \
+                python3-pip \
+                python3-setuptools \
+                tini \
+                file \
+                pipx \
+    && rm -rf /var/lib/apt/lists/*
+
+# 下载 GE-Proton10-26
+RUN         curl -sLOJ "$(curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/tags/GE-Proton10-26 | grep browser_download_url | cut -d\" -f4  | egrep .tar.gz)" \
+    && tar -xzf GE-Proton*.tar.gz -C /usr/local/bin/ --strip-components=1 \
+    && rm GE-Proton*.*
+
+# 修复dbus machine-id（Proton/Wine必备，防止IPC异常卡死）
+RUN         rm -f /etc/machine-id \
+    && dbus-uuidgen --ensure=/etc/machine-id \
+    && rm -f /var/lib/dbus/machine-id \
+    && dbus-uuidgen --ensure
+
+# protontricks
+RUN         pipx install protontricks
+
+# winetricks
+RUN	        wget -q -O /usr/sbin/winetricks https://raw.githubusercontent.com/pelican-eggs/winetricks/master/src/winetricks \
+    && chmod +x /usr/sbin/winetricks
+
+# rcon-cli
+RUN         cd /tmp/ \
+    && curl -sSL https://github.com/gorcon/rcon-cli/releases/download/v0.10.3/rcon-0.10.3-amd64_linux.tar.gz > rcon.tar.gz \
+    && tar xvf rcon.tar.gz \
+    && mv rcon-0.10.3-amd64_linux/rcon /usr/local/bin/ \
+    && rm -rf /tmp/*
+
+# 创建容器用户
+RUN         useradd -m -d /home/container -s /bin/bash container
+
+# 复制你的自定义工具脚本
 COPY 03-Palworld/pal_auto_mods.sh    /usr/local/bin/
-COPY 00-Tools/7zz               /usr/local/bin/
+COPY 00-Tools/7zz                    /usr/local/bin/
 
-# 授权可执行
+# 赋予执行权限
 RUN chmod +x /usr/local/bin/pal_auto_mods.sh \
     && chmod +x /usr/local/bin/7zz
 
-USER container
-WORKDIR /home/container
+# 复制entrypoint（路径：03-Palworld/entrypoint.sh）
+COPY --chown=container:container 03-Palworld/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# 切换运行用户
+USER        container
+ENV         USER=container HOME=/home/container
+WORKDIR     /home/container
+
+STOPSIGNAL  SIGINT
+
+ENTRYPOINT  ["/usr/bin/tini", "-g", "--"]
+CMD         ["/entrypoint.sh"]
