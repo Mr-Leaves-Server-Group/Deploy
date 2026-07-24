@@ -95,7 +95,8 @@ update_settings() {
         if [ "${quote}" = "true" ]; then
             sed -i "s/${field}=\"[^\"]*\"/${field}=\"${value}\"/" "${SETTINGS_FILE}"
         else
-            sed -i "s/${field}=[0-9]*/${field}=${value}/" "${SETTINGS_FILE}"
+            # 修复：支持小数倍率匹配（原正则仅匹配整数）
+            sed -i "s/${field}=[0-9.-]*/${field}=${value}/" "${SETTINGS_FILE}"
         fi
     }
 
@@ -111,65 +112,179 @@ update_settings() {
         sed -i "s/${field}=([^)]*)/${field}=(${value})/" "${SETTINGS_FILE}"
     }
 
-    ## 服务器基础标识
+    ## ====================== 服务器基础信息 ======================
     [ -n "${SERVER_NAME:-}" ] && set_field ServerName "${SERVER_NAME}"
     [ -n "${SERVER_DESCRIPTION:-}" ] && set_field ServerDescription "${SERVER_DESCRIPTION}"
     [ -n "${ADMIN_PASSWORD:-}" ] && set_field AdminPassword "${ADMIN_PASSWORD}"
     [ -n "${SERVER_PASSWORD:-}" ] && set_field ServerPassword "${SERVER_PASSWORD}"
     [ -n "${MAX_PLAYERS:-}" ] && set_field ServerPlayerMaxNum "${MAX_PLAYERS}" false
+    [ -n "${COOP_PLAYER_MAX_NUM:-}" ] && set_field CoopPlayerMaxNum "${COOP_PLAYER_MAX_NUM}" false
+    [ -n "${REGION:-}" ] && set_field Region "${REGION}"
+    [ -n "${LOG_FORMAT_TYPE:-}" ] && set_field LogFormatType "${LOG_FORMAT_TYPE}"
 
-    ## 网络设置（1.0版本RCON与REST API同样在ini内配置）
+    ## ====================== 网络与远程管理 ======================
+    [ -n "${PUBLIC_IP:-}" ] && set_field PublicIP "${PUBLIC_IP}"
+    [ -n "${PUBLIC_PORT:-}" ] && set_field PublicPort "${PUBLIC_PORT}" false
     [ -n "${RCON_ENABLED:-}" ] && set_bool RCONEnabled "$(to_bool "${RCON_ENABLED}")"
     [ -n "${RCON_PORT:-}" ] && set_field RCONPort "${RCON_PORT}" false
     [ -n "${REST_API_ENABLED:-}" ] && set_bool RESTAPIEnabled "$(to_bool "${REST_API_ENABLED}")"
     [ -n "${REST_API_PORT:-}" ] && set_field RESTAPIPort "${REST_API_PORT}" false
+    [ -n "${USE_AUTH:-}" ] && set_bool bUseAuth "$(to_bool "${USE_AUTH}")"
+    [ -n "${BAN_LIST_URL:-}" ] && set_field BanListURL "${BAN_LIST_URL}"
 
-    ## 公网IP/端口（用于NAT/多网卡环境，仅对外广播，不会变更监听端口）
-    [ -n "${PUBLIC_IP:-}" ] && set_field PublicIP "${PUBLIC_IP}"
-    [ -n "${PUBLIC_PORT:-}" ] && set_field PublicPort "${PUBLIC_PORT}" false
-
-    ## 跨平台联机（1.0版本通过PalWorldSettings.ini中的CrossplayPlatforms元组控制）
+    ## ====================== 跨平台与联机设置 ======================
+    [ -n "${ENABLE_MULTIPLAY:-}" ] && set_bool bIsMultiplay "$(to_bool "${ENABLE_MULTIPLAY}")"
     [ -n "${CROSSPLAY_PLATFORMS:-}" ] && set_tuple CrossplayPlatforms "${CROSSPLAY_PLATFORMS}"
+    [ -n "${ALLOW_CLIENT_MOD:-}" ] && set_bool bAllowClientMod "$(to_bool "${ALLOW_CLIENT_MOD}")"
 
-    ## PVP设置（1.0版本需要同时启用以下三项才能生效）
+    ## ====================== 游戏核心模式 ======================
+    [ -n "${DIFFICULTY:-}" ] && set_field Difficulty "${DIFFICULTY}"
+    [ -n "${DEATH_PENALTY:-}" ] && set_field DeathPenalty "${DEATH_PENALTY}"
+    [ -n "${ENABLE_HARDCORE:-}" ] && set_bool bHardcore "$(to_bool "${ENABLE_HARDCORE}")"
+    [ -n "${ENABLE_PAL_LOST:-}" ] && set_bool bPalLost "$(to_bool "${ENABLE_PAL_LOST}")"
+    [ -n "${ENABLE_CHARACTER_RECREATE_IN_HARDCORE:-}" ] && set_bool bCharacterRecreateInHardcore "$(to_bool "${ENABLE_CHARACTER_RECREATE_IN_HARDCORE}")"
+
+    ## ====================== PvP 细节配置 ======================
+    [ -n "${ENABLE_PLAYER_TO_PLAYER_DAMAGE:-}" ] && set_bool bEnablePlayerToPlayerDamage "$(to_bool "${ENABLE_PLAYER_TO_PLAYER_DAMAGE}")"
+    [ -n "${ENABLE_FRIENDLY_FIRE:-}" ] && set_bool bEnableFriendlyFire "$(to_bool "${ENABLE_FRIENDLY_FIRE}")"
+    [ -n "${ENABLE_DEFENSE_OTHER_GUILD_PLAYER:-}" ] && set_bool bEnableDefenseOtherGuildPlayer "$(to_bool "${ENABLE_DEFENSE_OTHER_GUILD_PLAYER}")"
+    [ -n "${ENABLE_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP:-}" ] && set_bool bCanPickupOtherGuildDeathPenaltyDrop "$(to_bool "${ENABLE_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP}")"
+    [ -n "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_BASE_CAMP:-}" ] && set_bool bDisplayPvPItemNumOnWorldMap_BaseCamp "$(to_bool "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_BASE_CAMP}")"
+    [ -n "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_PLAYER:-}" ] && set_bool bDisplayPvPItemNumOnWorldMap_Player "$(to_bool "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_PLAYER}")"
+    [ -n "${ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE:-}" ] && set_field AdditionalDropItemWhenPlayerKillingInPvPMode "${ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE}"
+    [ -n "${ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE:-}" ] && set_field AdditionalDropItemNumWhenPlayerKillingInPvPMode "${ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE}" false
+    [ -n "${ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE:-}" ] && set_bool bAdditionalDropItemWhenPlayerKillingInPvPMode "$(to_bool "${ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE}")"
+
+    # PvP 一键开启（优先级高于单独配置，同步启用三项核心开关）
     if [ "${ENABLE_PVP:-false}" = "true" ]; then
         set_bool bIsPvP True
         set_bool bEnablePlayerToPlayerDamage True
         set_bool bEnableDefenseOtherGuildPlayer True
-        log "已开启PVP（同步启用bIsPvP + bEnablePlayerToPlayerDamage + bEnableDefenseOtherGuildPlayer）"
+        log "已一键开启PVP（同步启用bIsPvP + bEnablePlayerToPlayerDamage + bEnableDefenseOtherGuildPlayer）"
     fi
 
-    ## 游戏倍率配置（环境变量非空时才覆盖，否则沿用ini默认值）
-    [ -n "${DIFFICULTY:-}" ] && set_field Difficulty "${DIFFICULTY}"
+    ## ====================== 随机化设置 ======================
+    [ -n "${RANDOMIZER_TYPE:-}" ] && set_field RandomizerType "${RANDOMIZER_TYPE}"
+    [ -n "${RANDOMIZER_SEED:-}" ] && set_field RandomizerSeed "${RANDOMIZER_SEED}"
+    [ -n "${ENABLE_RANDOMIZER_PAL_LEVEL_RANDOM:-}" ] && set_bool bIsRandomizerPalLevelRandom "$(to_bool "${ENABLE_RANDOMIZER_PAL_LEVEL_RANDOM}")"
+
+    ## ====================== 时间与全局倍率 ======================
+    [ -n "${DAYTIME_SPEED_RATE:-}" ] && set_field DayTimeSpeedRate "${DAYTIME_SPEED_RATE}" false
+    [ -n "${NIGHTTIME_SPEED_RATE:-}" ] && set_field NightTimeSpeedRate "${NIGHTTIME_SPEED_RATE}" false
     [ -n "${EXP_RATE:-}" ] && set_field ExpRate "${EXP_RATE}" false
     [ -n "${PAL_CAPTURE_RATE:-}" ] && set_field PalCaptureRate "${PAL_CAPTURE_RATE}" false
     [ -n "${PAL_SPAWN_NUM_RATE:-}" ] && set_field PalSpawnNumRate "${PAL_SPAWN_NUM_RATE}" false
     [ -n "${PAL_EGG_HATCHING_TIME:-}" ] && set_field PalEggDefaultHatchingTime "${PAL_EGG_HATCHING_TIME}" false
     [ -n "${WORK_SPEED_RATE:-}" ] && set_field WorkSpeedRate "${WORK_SPEED_RATE}" false
-    [ -n "${DAYTIME_SPEED_RATE:-}" ] && set_field DayTimeSpeedRate "${DAYTIME_SPEED_RATE}" false
-    [ -n "${NIGHTTIME_SPEED_RATE:-}" ] && set_field NightTimeSpeedRate "${NIGHTTIME_SPEED_RATE}" false
-    [ -n "${COLLECTION_DROP_RATE:-}" ] && set_field CollectionDropRate "${COLLECTION_DROP_RATE}" false
-    [ -n "${ENEMY_DROP_ITEM_RATE:-}" ] && set_field EnemyDropItemRate "${ENEMY_DROP_ITEM_RATE}" false
-    [ -n "${DEATH_PENALTY:-}" ] && set_field DeathPenalty "${DEATH_PENALTY}"
+    [ -n "${AUTO_SAVE_SPAN:-}" ] && set_field AutoSaveSpan "${AUTO_SAVE_SPAN}" false
+    [ -n "${SUPPLY_DROP_SPAN:-}" ] && set_field SupplyDropSpan "${SUPPLY_DROP_SPAN}" false
+    [ -n "${MONSTER_FARM_ACTION_SPEED_RATE:-}" ] && set_field MonsterFarmActionSpeedRate "${MONSTER_FARM_ACTION_SPEED_RATE}" false
 
-    ## 帕鲁与玩家属性消耗倍率
-    [ -n "${PAL_STOMACH_DECREACE_RATE:-}" ] && set_field PalStomachDecreaceRate "${PAL_STOMACH_DECREACE_RATE}" false
-    [ -n "${PAL_STAMINA_DECREACE_RATE:-}" ] && set_field PalStaminaDecreaceRate "${PAL_STAMINA_DECREACE_RATE}" false
-    [ -n "${PLAYER_STOMACH_DECREACE_RATE:-}" ] && set_field PlayerStomachDecreaceRate "${PLAYER_STOMACH_DECREACE_RATE}" false
-    [ -n "${PLAYER_STAMINA_DECREACE_RATE:-}" ] && set_field PlayerStaminaDecreaceRate "${PLAYER_STAMINA_DECREACE_RATE}" false
-    [ -n "${PAL_DAMAGE_RATE_ATTACK:-}" ] && set_field PalDamageRateAttack "${PAL_DAMAGE_RATE_ATTACK}" false
-    [ -n "${PAL_DAMAGE_RATE_DEFENSE:-}" ] && set_field PalDamageRateDefense "${PAL_DAMAGE_RATE_DEFENSE}" false
+    ## ====================== 玩家属性倍率 ======================
     [ -n "${PLAYER_DAMAGE_RATE_ATTACK:-}" ] && set_field PlayerDamageRateAttack "${PLAYER_DAMAGE_RATE_ATTACK}" false
     [ -n "${PLAYER_DAMAGE_RATE_DEFENSE:-}" ] && set_field PlayerDamageRateDefense "${PLAYER_DAMAGE_RATE_DEFENSE}" false
+    [ -n "${PLAYER_STOMACH_DECREACE_RATE:-}" ] && set_field PlayerStomachDecreaceRate "${PLAYER_STOMACH_DECREACE_RATE}" false
+    [ -n "${PLAYER_STAMINA_DECREACE_RATE:-}" ] && set_field PlayerStaminaDecreaceRate "${PLAYER_STAMINA_DECREACE_RATE}" false
+    [ -n "${PLAYER_AUTO_HP_REGENE_RATE:-}" ] && set_field PlayerAutoHPRegeneRate "${PLAYER_AUTO_HP_REGENE_RATE}" false
+    [ -n "${PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP:-}" ] && set_field PlayerAutoHpRegeneRateInSleep "${PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP}" false
+    [ -n "${ITEM_WEIGHT_RATE:-}" ] && set_field ItemWeightRate "${ITEM_WEIGHT_RATE}" false
+    [ -n "${EQUIPMENT_DURABILITY_DAMAGE_RATE:-}" ] && set_field EquipmentDurabilityDamageRate "${EQUIPMENT_DURABILITY_DAMAGE_RATE}" false
 
-    ## 基地/公会上限设置
+    ## ====================== 帕鲁属性倍率 ======================
+    [ -n "${PAL_DAMAGE_RATE_ATTACK:-}" ] && set_field PalDamageRateAttack "${PAL_DAMAGE_RATE_ATTACK}" false
+    [ -n "${PAL_DAMAGE_RATE_DEFENSE:-}" ] && set_field PalDamageRateDefense "${PAL_DAMAGE_RATE_DEFENSE}" false
+    [ -n "${PAL_STOMACH_DECREACE_RATE:-}" ] && set_field PalStomachDecreaceRate "${PAL_STOMACH_DECREACE_RATE}" false
+    [ -n "${PAL_STAMINA_DECREACE_RATE:-}" ] && set_field PalStaminaDecreaceRate "${PAL_STAMINA_DECREACE_RATE}" false
+    [ -n "${PAL_AUTO_HP_REGENE_RATE:-}" ] && set_field PalAutoHPRegeneRate "${PAL_AUTO_HP_REGENE_RATE}" false
+    [ -n "${PAL_AUTO_HP_REGENE_RATE_IN_SLEEP:-}" ] && set_field PalAutoHpRegeneRateInSleep "${PAL_AUTO_HP_REGENE_RATE_IN_SLEEP}" false
+
+    ## ====================== 建筑与采集倍率 ======================
+    [ -n "${BUILD_OBJECT_HP_RATE:-}" ] && set_field BuildObjectHpRate "${BUILD_OBJECT_HP_RATE}" false
+    [ -n "${BUILD_OBJECT_DAMAGE_RATE:-}" ] && set_field BuildObjectDamageRate "${BUILD_OBJECT_DAMAGE_RATE}" false
+    [ -n "${BUILD_OBJECT_DETERIORATION_DAMAGE_RATE:-}" ] && set_field BuildObjectDeteriorationDamageRate "${BUILD_OBJECT_DETERIORATION_DAMAGE_RATE}" false
+    [ -n "${COLLECTION_DROP_RATE:-}" ] && set_field CollectionDropRate "${COLLECTION_DROP_RATE}" false
+    [ -n "${COLLECTION_OBJECT_HP_RATE:-}" ] && set_field CollectionObjectHpRate "${COLLECTION_OBJECT_HP_RATE}" false
+    [ -n "${COLLECTION_OBJECT_RESPAWN_SPEED_RATE:-}" ] && set_field CollectionObjectRespawnSpeedRate "${COLLECTION_OBJECT_RESPAWN_SPEED_RATE}" false
+    [ -n "${ENEMY_DROP_ITEM_RATE:-}" ] && set_field EnemyDropItemRate "${ENEMY_DROP_ITEM_RATE}" false
+
+    ## ====================== 掉落物品设置 ======================
+    [ -n "${DROP_ITEM_MAX_NUM:-}" ] && set_field DropItemMaxNum "${DROP_ITEM_MAX_NUM}" false
+    [ -n "${DROP_ITEM_MAX_NUM_UNKO:-}" ] && set_field DropItemMaxNum_UNKO "${DROP_ITEM_MAX_NUM_UNKO}" false
+    [ -n "${DROP_ITEM_ALIVE_MAX_HOURS:-}" ] && set_field DropItemAliveMaxHours "${DROP_ITEM_ALIVE_MAX_HOURS}" false
+    [ -n "${PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM:-}" ] && set_field PhysicsActiveDropItemMaxNum "${PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM}" false
+
+    ## ====================== 基地与公会管理 ======================
     [ -n "${BASE_CAMP_MAX_NUM:-}" ] && set_field BaseCampMaxNum "${BASE_CAMP_MAX_NUM}" false
+    [ -n "${BASE_CAMP_MAX_NUM_IN_GUILD:-}" ] && set_field BaseCampMaxNumInGuild "${BASE_CAMP_MAX_NUM_IN_GUILD}" false
     [ -n "${BASE_CAMP_WORKER_MAX_NUM:-}" ] && set_field BaseCampWorkerMaxNum "${BASE_CAMP_WORKER_MAX_NUM}" false
     [ -n "${GUILD_PLAYER_MAX_NUM:-}" ] && set_field GuildPlayerMaxNum "${GUILD_PLAYER_MAX_NUM}" false
-    [ -n "${DROP_ITEM_MAX_NUM:-}" ] && set_field DropItemMaxNum "${DROP_ITEM_MAX_NUM}" false
+    [ -n "${ENABLE_AUTO_RESET_GUILD_NO_ONLINE_PLAYERS:-}" ] && set_bool bAutoResetGuildNoOnlinePlayers "$(to_bool "${ENABLE_AUTO_RESET_GUILD_NO_ONLINE_PLAYERS}")"
+    [ -n "${AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS:-}" ] && set_field AutoResetGuildTimeNoOnlinePlayers "${AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS}" false
+    [ -n "${GUILD_REJOIN_COOLDOWN_MINUTES:-}" ] && set_field GuildRejoinCooldownMinutes "${GUILD_REJOIN_COOLDOWN_MINUTES}" false
+    [ -n "${MAX_GUILDS_PER_FRAME:-}" ] && set_field MaxGuildsPerFrame "${MAX_GUILDS_PER_FRAME}" false
+    [ -n "${ENABLE_INVISIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX:-}" ] && set_bool bInvisibleOtherGuildBaseCampAreaFX "$(to_bool "${ENABLE_INVISIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX}")"
+    [ -n "${ENABLE_BUILD_AREA_LIMIT:-}" ] && set_bool bBuildAreaLimit "$(to_bool "${ENABLE_BUILD_AREA_LIMIT}")"
 
-    ## 入侵敌人开关（关闭后可降低内存占用，适合低配置服务器）
+    ## ====================== 敌人与入侵 ======================
     [ -n "${ENABLE_INVADER_ENEMY:-}" ] && set_bool bEnableInvaderEnemy "$(to_bool "${ENABLE_INVADER_ENEMY}")"
+    [ -n "${ENABLE_PREDATOR_BOSS_PAL:-}" ] && set_bool EnablePredatorBossPal "$(to_bool "${ENABLE_PREDATOR_BOSS_PAL}")"
+    [ -n "${ENABLE_ACTIVE_UNKO:-}" ] && set_bool bActiveUNKO "$(to_bool "${ENABLE_ACTIVE_UNKO}")"
+
+    ## ====================== 瞄准辅助 ======================
+    [ -n "${ENABLE_AIM_ASSIST_PAD:-}" ] && set_bool bEnableAimAssistPad "$(to_bool "${ENABLE_AIM_ASSIST_PAD}")"
+    [ -n "${ENABLE_AIM_ASSIST_KEYBOARD:-}" ] && set_bool bEnableAimAssistKeyboard "$(to_bool "${ENABLE_AIM_ASSIST_KEYBOARD}")"
+
+    ## ====================== 存档与数据一致性 ======================
+    [ -n "${USE_BACKUP_SAVE_DATA:-}" ] && set_bool bIsUseBackupSaveData "$(to_bool "${USE_BACKUP_SAVE_DATA}")"
+    [ -n "${PLAYER_DATA_PAL_STORAGE_UPDATE_CHECK_TICK_INTERVAL:-}" ] && set_field PlayerDataPalStorageUpdateCheckTickInterval "${PLAYER_DATA_PAL_STORAGE_UPDATE_CHECK_TICK_INTERVAL}" false
+    [ -n "${ITEM_CONTAINER_FORCE_MARK_DIRTY_INTERVAL:-}" ] && set_field ItemContainerForceMarkDirtyInterval "${ITEM_CONTAINER_FORCE_MARK_DIRTY_INTERVAL}" false
+    [ -n "${ITEM_CORRUPTION_MULTIPLIER:-}" ] && set_field ItemCorruptionMultiplier "${ITEM_CORRUPTION_MULTIPLIER}" false
+
+    ## ====================== 旅行与玩家交互 ======================
+    [ -n "${ENABLE_NON_LOGIN_PENALTY:-}" ] && set_bool bEnableNonLoginPenalty "$(to_bool "${ENABLE_NON_LOGIN_PENALTY}")"
+    [ -n "${ENABLE_FAST_TRAVEL:-}" ] && set_bool bEnableFastTravel "$(to_bool "${ENABLE_FAST_TRAVEL}")"
+    [ -n "${ENABLE_FAST_TRAVEL_ONLY_BASE_CAMP:-}" ] && set_bool bEnableFastTravelOnlyBaseCamp "$(to_bool "${ENABLE_FAST_TRAVEL_ONLY_BASE_CAMP}")"
+    [ -n "${ENABLE_START_LOCATION_SELECT_BY_MAP:-}" ] && set_bool bIsStartLocationSelectByMap "$(to_bool "${ENABLE_START_LOCATION_SELECT_BY_MAP}")"
+    [ -n "${ENABLE_EXIST_PLAYER_AFTER_LOGOUT:-}" ] && set_bool bExistPlayerAfterLogout "$(to_bool "${ENABLE_EXIST_PLAYER_AFTER_LOGOUT}")"
+    [ -n "${SHOW_PLAYER_LIST:-}" ] && set_bool bShowPlayerList "$(to_bool "${SHOW_PLAYER_LIST}")"
+    [ -n "${SHOW_JOIN_LEFT_MESSAGE:-}" ] && set_bool bIsShowJoinLeftMessage "$(to_bool "${SHOW_JOIN_LEFT_MESSAGE}")"
+    [ -n "${CHAT_POST_LIMIT_PER_MINUTE:-}" ] && set_field ChatPostLimitPerMinute "${CHAT_POST_LIMIT_PER_MINUTE}" false
+
+    ## ====================== 帕鲁箱进出口 ======================
+    [ -n "${ALLOW_GLOBAL_PALBOX_EXPORT:-}" ] && set_bool bAllowGlobalPalboxExport "$(to_bool "${ALLOW_GLOBAL_PALBOX_EXPORT}")"
+    [ -n "${ALLOW_GLOBAL_PALBOX_IMPORT:-}" ] && set_bool bAllowGlobalPalboxImport "$(to_bool "${ALLOW_GLOBAL_PALBOX_IMPORT}")"
+
+    ## ====================== 科技禁用列表 ======================
+    [ -n "${DENY_TECHNOLOGY_LIST:-}" ] && set_tuple DenyTechnologyList "${DENY_TECHNOLOGY_LIST}"
+
+    ## ====================== 重生与惩罚机制 ======================
+    [ -n "${BLOCK_RESPAWN_TIME:-}" ] && set_field BlockRespawnTime "${BLOCK_RESPAWN_TIME}" false
+    [ -n "${RESPAWN_PENALTY_DURATION_THRESHOLD:-}" ] && set_field RespawnPenaltyDurationThreshold "${RESPAWN_PENALTY_DURATION_THRESHOLD}" false
+    [ -n "${RESPAWN_PENALTY_TIME_SCALE:-}" ] && set_field RespawnPenaltyTimeScale "${RESPAWN_PENALTY_TIME_SCALE}" false
+
+    ## ====================== 属性增强权限 ======================
+    [ -n "${ALLOW_ENHANCE_STAT_HEALTH:-}" ] && set_bool bAllowEnhanceStat_Health "$(to_bool "${ALLOW_ENHANCE_STAT_HEALTH}")"
+    [ -n "${ALLOW_ENHANCE_STAT_ATTACK:-}" ] && set_bool bAllowEnhanceStat_Attack "$(to_bool "${ALLOW_ENHANCE_STAT_ATTACK}")"
+    [ -n "${ALLOW_ENHANCE_STAT_STAMINA:-}" ] && set_bool bAllowEnhanceStat_Stamina "$(to_bool "${ALLOW_ENHANCE_STAT_STAMINA}")"
+    [ -n "${ALLOW_ENHANCE_STAT_WEIGHT:-}" ] && set_bool bAllowEnhanceStat_Weight "$(to_bool "${ALLOW_ENHANCE_STAT_WEIGHT}")"
+    [ -n "${ALLOW_ENHANCE_STAT_WORK_SPEED:-}" ] && set_bool bAllowEnhanceStat_WorkSpeed "$(to_bool "${ALLOW_ENHANCE_STAT_WORK_SPEED}")"
+
+    ## ====================== 公会自动管理 ======================
+    [ -n "${AUTO_TRANSFER_MASTER_CHECK_INTERVAL_SECONDS:-}" ] && set_field AutoTransferMasterCheckIntervalSeconds "${AUTO_TRANSFER_MASTER_CHECK_INTERVAL_SECONDS}" false
+    [ -n "${AUTO_TRANSFER_MASTER_THRESHOLD_DAYS:-}" ] && set_field AutoTransferMasterThresholdDays "${AUTO_TRANSFER_MASTER_THRESHOLD_DAYS}" false
+
+    ## ====================== 语音聊天 ======================
+    [ -n "${ENABLE_VOICE_CHAT:-}" ] && set_bool bEnableVoiceChat "$(to_bool "${ENABLE_VOICE_CHAT}")"
+    [ -n "${VOICE_CHAT_MAX_VOLUME_DISTANCE:-}" ] && set_field VoiceChatMaxVolumeDistance "${VOICE_CHAT_MAX_VOLUME_DISTANCE}" false
+    [ -n "${VOICE_CHAT_ZERO_VOLUME_DISTANCE:-}" ] && set_field VoiceChatZeroVolumeDistance "${VOICE_CHAT_ZERO_VOLUME_DISTANCE}" false
+
+    ## ====================== 建筑显示 ======================
+    [ -n "${ENABLE_BUILDING_PLAYER_UID_DISPLAY:-}" ] && set_bool bEnableBuildingPlayerUIdDisplay "$(to_bool "${ENABLE_BUILDING_PLAYER_UID_DISPLAY}")"
+    [ -n "${BUILDING_NAME_DISPLAY_CACHE_TTL_SECONDS:-}" ] && set_field BuildingNameDisplayCacheTTLSeconds "${BUILDING_NAME_DISPLAY_CACHE_TTL_SECONDS}" false
+
+    ## ====================== 性能与网络视野 ======================
+    [ -n "${MAX_BUILDING_LIMIT_NUM:-}" ] && set_field MaxBuildingLimitNum "${MAX_BUILDING_LIMIT_NUM}" false
+    [ -n "${SERVER_REPLICATE_PAWN_CULL_DISTANCE:-}" ] && set_field ServerReplicatePawnCullDistance "${SERVER_REPLICATE_PAWN_CULL_DISTANCE}" false
 
     ## 恢复严格错误检测，脚本后续命令出错即退出
     set -e
