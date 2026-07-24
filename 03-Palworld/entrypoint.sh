@@ -1,68 +1,68 @@
 #!/bin/bash
 
-# Wait for the container to fully initialize
+# 等待容器完成初始化
 sleep 1
 
-# Default the TZ environment variable to UTC.
+# 默认时区环境变量为 UTC
 TZ=${TZ:-UTC}
 export TZ
 
-# Set environment variable that holds the Internal Docker IP
+# 设置保存容器内部Docker IP的环境变量
 INTERNAL_IP=$(ip route get 1 | awk '{print $(NF-2);exit}')
 export INTERNAL_IP
 
-# Set environment for Steam Proton
-# 兼容新路径 /opt/proton/proton + 旧软链接 /usr/local/bin/proton
+# Steam Proton运行环境配置
+# 兼容新路径 /opt/proton/proton 以及旧软链接 /usr/local/bin/proton
 if [ -f "/opt/proton/proton" ] || [ -f "/usr/local/bin/proton" ]; then
     if [ ! -z ${SRCDS_APPID} ]; then
         mkdir -p /home/container/.steam/steam/steamapps/compatdata/${SRCDS_APPID}
         export STEAM_COMPAT_CLIENT_INSTALL_PATH="/home/container/.steam/steam"
         export STEAM_COMPAT_DATA_PATH="/home/container/.steam/steam/steamapps/compatdata/${SRCDS_APPID}"
-        # Fix for pipx with protontricks
+        # 修复protontricks使用pipx时路径问题
         export PATH=$PATH:/root/.local/bin
     else
         echo -e "----------------------------------------------------------------------------------"
-        echo -e "WARNING!!! Proton needs variable SRCDS_APPID, else it will not work. Please add it"
-        echo -e "Server stops now"
+        echo -e "警告!!! 使用Proton必须配置SRCDS_APPID环境变量，否则无法正常运行，请补充该参数"
+        echo -e "服务即将停止"
         echo -e "----------------------------------------------------------------------------------"
         exit 1
     fi
 fi
 
-# Switch to the container's working directory
+# 切换至容器工作目录
 cd /home/container || exit 1
 
-## Update server via SteamCMD if AUTO_UPDATE is 1 or not set
+## 如果AUTO_UPDATE为空或者等于1，则通过SteamCMD更新服务器文件
 if [ -z ${AUTO_UPDATE} ] || [ "${AUTO_UPDATE}" == "1" ]; then
-    echo -e "Checking for game server updates..."
-    # Check for set App ID
+    echo -e "正在检查游戏服务器更新..."
+    # 判断是否设置应用ID
     if [ ! -z ${SRCDS_APPID} ]; then
-        # Set default credentials if they are missing
+        # 缺失账号信息时填充默认值
         if [ "${STEAM_USER}" == "" ]; then
-            echo -e "Steam user is not set. Defaulting to anonymous user."
+            echo -e "未设置Steam账号，将使用匿名账号登录"
             STEAM_USER=anonymous
             STEAM_PASS=""
             STEAM_AUTH=""
         fi
-        # Run SteamCMD
+        # 执行SteamCMD更新命令
         ./steamcmd/steamcmd.sh +force_install_dir /home/container +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} $( [[ "${WINDOWS_INSTALL}" == "1" ]] && printf %s '+@sSteamCmdForcePlatformType windows' ) +app_update 1007 +app_update ${SRCDS_APPID} $( [[ -z ${SRCDS_BETAID} ]] || printf %s "-beta ${SRCDS_BETAID}" ) $( [[ -z ${SRCDS_BETAPASS} ]] || printf %s "-betapassword ${SRCDS_BETAPASS}" ) $( [[ -z ${HLDS_GAME} ]] || printf %s "+app_set_config 90 mod ${HLDS_GAME}" ) ${INSTALL_FLAGS} $( [[ "${VALIDATE}" == "1" ]] && printf %s 'validate' ) +quit
     else
-        echo -e "No App ID set! Skipping check."
+        echo -e "未配置应用ID，跳过更新检测"
     fi
 else
-    echo -e "Skipping game server update check; Auto Update is set to 0."
+    echo -e "已关闭自动更新，跳过服务器文件检查"
 fi
 
-# ====================== 新增 Palworld 配置自动写入模块 START ======================
+# ====================== 新增幻兽帕鲁配置自动写入模块 开始 ======================
 # 配置文件路径（Windows服务端标准路径）
 SETTINGS_FILE="/home/container/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini"
 
-# 简易日志函数
+# 简易日志输出函数
 log() {
-    echo -e "[CONFIG] $*"
+    echo -e "[配置模块] $*"
 }
 
-## Convert "true"/"false" strings to "True"/"False" for UE ini format
+## 将字符串 "true"/"false" 转换为UE配置文件所需的 "True"/"False" 格式
 to_bool() {
     case "$(echo "$1" | tr '[:upper:]' '[:lower:]')" in
         true|1|yes) echo "True" ;;
@@ -71,26 +71,25 @@ to_bool() {
 }
 
 ## -----------------------------------------------------------------------------
-## Apply environment variables to PalWorldSettings.ini
-## Palworld reads identity/network settings from this file, not CLI args.
-## We use sed to update specific fields in the OptionSettings tuple.
-## Note: Palworld 1.0 has 119 config keys — we only manage the high-value ones
-## here. For gameplay rates (EXP, capture, etc.) edit the ini directly.
+## 读取环境变量并写入 PalWorldSettings.ini
+## 幻兽帕鲁从该配置文件读取身份、网络相关参数，而非启动命令参数
+## 使用sed修改OptionSettings元组内指定配置项
+## 注意：幻兽帕鲁1.0版本共有119项配置，这里仅处理常用核心配置
+## 倍率类（经验、捕获倍率等）如需精细调整可直接编辑ini文件
 ## -----------------------------------------------------------------------------
 update_settings() {
     [ -f "${SETTINGS_FILE}" ] || {
-        log "WARN: PalWorldSettings.ini not found, skip config injection"
+        log "警告：未找到PalWorldSettings.ini，跳过配置注入"
         return 0
     }
 
-    log "Applying server settings from environment variables"
+    log "开始从环境变量加载并写入服务器配置"
 
-    ## Disable exit-on-error: sed -i can fail on FUSE/network filesystems
-    ## even when the underlying file is writable. We'd rather skip one
-    ## broken setting than kill the entire container.
+    ## 关闭命令错误退出：在FUSE/网络文件系统下sed -i可能出现误报错
+    ## 宁可跳过单条配置修改，也不要直接终止整个容器
     set +e
 
-    ## Helper: replace a FieldName="value" or FieldName=value in the ini
+    ## 工具函数：修改配置项 FieldName="value" 或 FieldName=value
     set_field() {
         local field="$1" value="$2" quote="${3:-true}"
         if [ "${quote}" = "true" ]; then
@@ -100,47 +99,47 @@ update_settings() {
         fi
     }
 
-    ## Helper: replace boolean fields (True/False)
+    ## 工具函数：修改布尔类型配置（True/False）
     set_bool() {
         local field="$1" value="$2"
         sed -i "s/${field}=\(True\|False\)/${field}=${value}/" "${SETTINGS_FILE}"
     }
 
-    ## Helper: replace tuple fields like CrossplayPlatforms=(Steam,Xbox,PS5,Mac)
+    ## 工具函数：修改元组配置，例如 CrossplayPlatforms=(Steam,Xbox,PS5,Mac)
     set_tuple() {
         local field="$1" value="$2"
         sed -i "s/${field}=([^)]*)/${field}=(${value})/" "${SETTINGS_FILE}"
     }
 
-    ## Server identity
+    ## 服务器基础标识
     [ -n "${SERVER_NAME:-}" ] && set_field ServerName "${SERVER_NAME}"
     [ -n "${SERVER_DESCRIPTION:-}" ] && set_field ServerDescription "${SERVER_DESCRIPTION}"
     [ -n "${ADMIN_PASSWORD:-}" ] && set_field AdminPassword "${ADMIN_PASSWORD}"
     [ -n "${SERVER_PASSWORD:-}" ] && set_field ServerPassword "${SERVER_PASSWORD}"
     [ -n "${MAX_PLAYERS:-}" ] && set_field ServerPlayerMaxNum "${MAX_PLAYERS}" false
 
-    ## Network (1.0: RCON and REST API are also configurable in the ini)
+    ## 网络设置（1.0版本RCON与REST API同样在ini内配置）
     [ -n "${RCON_ENABLED:-}" ] && set_bool RCONEnabled "$(to_bool "${RCON_ENABLED}")"
     [ -n "${RCON_PORT:-}" ] && set_field RCONPort "${RCON_PORT}" false
     [ -n "${REST_API_ENABLED:-}" ] && set_bool RESTAPIEnabled "$(to_bool "${REST_API_ENABLED}")"
     [ -n "${REST_API_PORT:-}" ] && set_field RESTAPIPort "${REST_API_PORT}" false
 
-    ## Public IP/port (for NAT/multi-homed setups — only advertises, doesn't change listen port)
+    ## 公网IP/端口（用于NAT/多网卡环境，仅对外广播，不会变更监听端口）
     [ -n "${PUBLIC_IP:-}" ] && set_field PublicIP "${PUBLIC_IP}"
     [ -n "${PUBLIC_PORT:-}" ] && set_field PublicPort "${PUBLIC_PORT}" false
 
-    ## Crossplay (1.0: CrossplayPlatforms tuple in PalWorldSettings.ini)
+    ## 跨平台联机（1.0版本通过PalWorldSettings.ini中的CrossplayPlatforms元组控制）
     [ -n "${CROSSPLAY_PLATFORMS:-}" ] && set_tuple CrossplayPlatforms "${CROSSPLAY_PLATFORMS}"
 
-    ## PvP (1.0: requires all three toggles on together)
+    ## PVP设置（1.0版本需要同时启用以下三项才能生效）
     if [ "${ENABLE_PVP:-false}" = "true" ]; then
         set_bool bIsPvP True
         set_bool bEnablePlayerToPlayerDamage True
         set_bool bEnableDefenseOtherGuildPlayer True
-        log "PvP enabled (bIsPvP + bEnablePlayerToPlayerDamage + bEnableDefenseOtherGuildPlayer)"
+        log "已开启PVP（同步启用bIsPvP + bEnablePlayerToPlayerDamage + bEnableDefenseOtherGuildPlayer）"
     fi
 
-    ## Gameplay multipliers (only set if non-empty — otherwise ini defaults apply)
+    ## 游戏倍率配置（环境变量非空时才覆盖，否则沿用ini默认值）
     [ -n "${DIFFICULTY:-}" ] && set_field Difficulty "${DIFFICULTY}"
     [ -n "${EXP_RATE:-}" ] && set_field ExpRate "${EXP_RATE}" false
     [ -n "${PAL_CAPTURE_RATE:-}" ] && set_field PalCaptureRate "${PAL_CAPTURE_RATE}" false
@@ -153,7 +152,7 @@ update_settings() {
     [ -n "${ENEMY_DROP_ITEM_RATE:-}" ] && set_field EnemyDropItemRate "${ENEMY_DROP_ITEM_RATE}" false
     [ -n "${DEATH_PENALTY:-}" ] && set_field DeathPenalty "${DEATH_PENALTY}"
 
-    ## Pal/player stat rates
+    ## 帕鲁与玩家属性消耗倍率
     [ -n "${PAL_STOMACH_DECREACE_RATE:-}" ] && set_field PalStomachDecreaceRate "${PAL_STOMACH_DECREACE_RATE}" false
     [ -n "${PAL_STAMINA_DECREACE_RATE:-}" ] && set_field PalStaminaDecreaceRate "${PAL_STAMINA_DECREACE_RATE}" false
     [ -n "${PLAYER_STOMACH_DECREACE_RATE:-}" ] && set_field PlayerStomachDecreaceRate "${PLAYER_STOMACH_DECREACE_RATE}" false
@@ -163,27 +162,27 @@ update_settings() {
     [ -n "${PLAYER_DAMAGE_RATE_ATTACK:-}" ] && set_field PlayerDamageRateAttack "${PLAYER_DAMAGE_RATE_ATTACK}" false
     [ -n "${PLAYER_DAMAGE_RATE_DEFENSE:-}" ] && set_field PlayerDamageRateDefense "${PLAYER_DAMAGE_RATE_DEFENSE}" false
 
-    ## Base/guild limits
+    ## 基地/公会上限设置
     [ -n "${BASE_CAMP_MAX_NUM:-}" ] && set_field BaseCampMaxNum "${BASE_CAMP_MAX_NUM}" false
     [ -n "${BASE_CAMP_WORKER_MAX_NUM:-}" ] && set_field BaseCampWorkerMaxNum "${BASE_CAMP_WORKER_MAX_NUM}" false
     [ -n "${GUILD_PLAYER_MAX_NUM:-}" ] && set_field GuildPlayerMaxNum "${GUILD_PLAYER_MAX_NUM}" false
     [ -n "${DROP_ITEM_MAX_NUM:-}" ] && set_field DropItemMaxNum "${DROP_ITEM_MAX_NUM}" false
 
-    ## Invader enemy (disabling halves RAM — useful for constrained servers)
+    ## 入侵敌人开关（关闭后可降低内存占用，适合低配置服务器）
     [ -n "${ENABLE_INVADER_ENEMY:-}" ] && set_bool bEnableInvaderEnemy "$(to_bool "${ENABLE_INVADER_ENEMY}")"
 
-    ## Restore strict error handling for the rest of the script
+    ## 恢复严格错误检测，脚本后续命令出错即退出
     set -e
 }
 
-# 执行配置更新
+# 执行配置更新函数
 update_settings
-# ====================== 新增 Palworld 配置自动写入模块 END ======================
+# ====================== 新增幻兽帕鲁配置自动写入模块 结束 ======================
 
-# Replace Startup Variables
+# 替换启动参数变量
 MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
 
-# Run the Server
-echo -e "Starting server..."
+# 启动游戏服务器
+echo -e "正在启动服务器..."
 echo -e ":/home/container$ ${MODIFIED_STARTUP}"
 eval ${MODIFIED_STARTUP}
