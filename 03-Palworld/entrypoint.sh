@@ -82,11 +82,7 @@ if [ -d "/home/container/Pal/Saved/SaveGames" ]; then
     echo "[MLSG-INIT] 临时文件清理完毕，确保存档环境干净。"
 fi
 
-# 2. Palworld 原生日志准备与后台转发
-touch "$CONSOLE_LOG_DIR/Pal.log"
-tail -F "$CONSOLE_LOG_DIR/Pal.log" &
-
-# 3. PalDefender 日志归档与后台动态捕捉
+# 2. PalDefender 日志归档与后台动态捕捉
 PD_LOG_DIR="/home/container/Pal/Binaries/Win64/PalDefender/Logs"
 PD_ARCHIVE_DIR="${PD_LOG_DIR}/History_Logs"
 
