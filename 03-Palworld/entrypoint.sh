@@ -79,11 +79,12 @@ to_bool() {
 ## -----------------------------------------------------------------------------
 update_settings() {
     [ -f "${SETTINGS_FILE}" ] || {
-        log "警告：未找到PalWorldSettings.ini，跳过配置注入"
+        log "警告：未找到配置文件"
+        log "请检查文件：${SETTINGS_FILE}"
         return 0
     }
 
-    log "开始从环境变量加载并写入服务器配置"
+    log "游戏参数配置 - 开始写入"
 
     ## 关闭命令错误退出：在FUSE/网络文件系统下sed -i可能出现误报错
     ## 宁可跳过单条配置修改，也不要直接终止整个容器
@@ -112,6 +113,38 @@ update_settings() {
         sed -i "s/${field}=([^)]*)/${field}=(${value})/" "${SETTINGS_FILE}"
     }
 
+    # ==================== 新增封装：统一执行+打印日志 ====================
+    # 使用示例：
+    # apply_config "ServerDescription" "${SERVER_DESCRIPTION}" "field" true
+    # apply_config "RCONEnabled" "${RCON_BOOL}" "bool"
+    # apply_config "CrossplayPlatforms" "${CROSSPLAY_PLATFORMS}" "tuple"
+    apply_config() {
+        local ini_key="$1"
+        local env_val="$2"
+        local mode="$3"
+        local quote_flag="${4:-true}"
+
+        if [ -z "${env_val}" ]; then
+            return 0
+        fi
+
+        case "${mode}" in
+            field)
+                set_field "${ini_key}" "${env_val}" "${quote_flag}"
+                ;;
+            bool)
+                local real_val="$(to_bool "${env_val}")"
+                set_bool "${ini_key}" "${real_val}"
+                env_val="${real_val}"
+                ;;
+            tuple)
+                set_tuple "${ini_key}" "${env_val}"
+                ;;
+        esac
+
+        log "[配置] 写入 ${ini_key} = ${env_val}"
+    }
+
     ## ====================== 服务器基础标识 ======================
     # ⚠️ 【被启动命令参数覆盖，INI写入失效，保留注释仅供查阅】
     # [ -n "${SERVER_NAME:-}" ] && set_field ServerName "${SERVER_NAME}"
@@ -119,119 +152,117 @@ update_settings() {
     # [ -n "${ADMIN_PASSWORD:-}" ] && set_field AdminPassword "${ADMIN_PASSWORD}"
     # [ -n "${MAX_PLAYERS:-}" ] && set_field ServerPlayerMaxNum "${MAX_PLAYERS}" false
 
-    [ -n "${SERVER_DESCRIPTION:-}" ] && set_field ServerDescription "${SERVER_DESCRIPTION}"
+    apply_config "ServerDescription" "${SERVER_DESCRIPTION}" "field"
 
     ## ====================== 网络与远程管理 ======================
-    [ -n "${PUBLIC_IP:-}" ] && set_field PublicIP "${PUBLIC_IP}"
+    apply_config "PublicIP" "${PUBLIC_IP}" "field"
     # ⚠️ 【被启动命令参数覆盖，INI写入失效，保留注释仅供查阅】
     # [ -n "${PUBLIC_PORT:-}" ] && set_field PublicPort "${PUBLIC_PORT}" false
 
-    # egg变量名 RCON_ENABLE 对齐脚本变量
-    [ -n "${RCON_ENABLE:-}" ] && set_bool RCONEnabled "$(to_bool "${RCON_ENABLE}")"
-    [ -n "${RCON_PORT:-}" ] && set_field RCONPort "${RCON_PORT}" false
-    [ -n "${REST_API_ENABLED:-}" ] && set_bool RESTAPIEnabled "$(to_bool "${REST_API_ENABLED}")"
-    [ -n "${REST_API_PORT:-}" ] && set_field RESTAPIPort "${REST_API_PORT}" false
-    [ -n "${USE_AUTH:-}" ] && set_bool bUseAuth "$(to_bool "${USE_AUTH}")"
+    apply_config "RCONEnabled" "${RCON_ENABLE}" "bool"
+    apply_config "RCONPort" "${RCON_PORT}" "field" false
+    apply_config "RESTAPIEnabled" "${REST_API_ENABLED}" "bool"
+    apply_config "RESTAPIPort" "${REST_API_PORT}" "field" false
+    apply_config "bUseAuth" "${USE_AUTH}" "bool"
     #[ -n "${BAN_LIST_URL:-}" ] && set_field BanListURL "${BAN_LIST_URL}"
     #[ -n "${REGION:-}" ] && set_field Region "${REGION}"
-    [ -n "${LOG_FORMAT_TYPE:-}" ] && set_field LogFormatType "${LOG_FORMAT_TYPE}"
+    apply_config "LogFormatType" "${LOG_FORMAT_TYPE}" "field"
 
     ## ====================== 跨平台与联机设置 ======================
     #[ -n "${ENABLE_MULTIPLAY:-}" ] && set_bool bIsMultiplay "$(to_bool "${ENABLE_MULTIPLAY}")"
-    [ -n "${CROSSPLAY_PLATFORMS:-}" ] && set_tuple CrossplayPlatforms "${CROSSPLAY_PLATFORMS}"
+    apply_config "CrossplayPlatforms" "${CROSSPLAY_PLATFORMS}" "tuple"
     #[ -n "${ALLOW_CLIENT_MOD:-}" ] && set_bool bAllowClientMod "$(to_bool "${ALLOW_CLIENT_MOD}")"
 
     ## ====================== 游戏核心模式 ======================
-    [ -n "${DIFFICULTY:-}" ] && set_field Difficulty "${DIFFICULTY}"
-    [ -n "${DEATH_PENALTY:-}" ] && set_field DeathPenalty "${DEATH_PENALTY}"
-    [ -n "${ENABLE_HARDCORE:-}" ] && set_bool bHardcore "$(to_bool "${ENABLE_HARDCORE}")"
+    apply_config "Difficulty" "${DIFFICULTY}" "field"
+    apply_config "DeathPenalty" "${DEATH_PENALTY}" "field"
+    apply_config "bHardcore" "${ENABLE_HARDCORE}" "bool"
     #[ -n "${ENABLE_PAL_LOST:-}" ] && set_bool bPalLost "$(to_bool "${ENABLE_PAL_LOST}")"
     #[ -n "${ENABLE_CHARACTER_RECREATE_IN_HARDCORE:-}" ] && set_bool bCharacterRecreateInHardcore "$(to_bool "${ENABLE_CHARACTER_RECREATE_IN_HARDCORE}")"
 
     ## ====================== PvP 细节配置 ======================
-    [ -n "${ENABLE_PLAYER_TO_PLAYER_DAMAGE:-}" ] && set_bool bEnablePlayerToPlayerDamage "$(to_bool "${ENABLE_PLAYER_TO_PLAYER_DAMAGE}")"
-    [ -n "${ENABLE_FRIENDLY_FIRE:-}" ] && set_bool bEnableFriendlyFire "$(to_bool "${ENABLE_FRIENDLY_FIRE}")"
-    [ -n "${ENABLE_DEFENSE_OTHER_GUILD_PLAYER:-}" ] && set_bool bEnableDefenseOtherGuildPlayer "$(to_bool "${ENABLE_DEFENSE_OTHER_GUILD_PLAYER}")"
-    [ -n "${ENABLE_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP:-}" ] && set_bool bCanPickupOtherGuildDeathPenaltyDrop "$(to_bool "${ENABLE_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP}")"
+    apply_config "bEnablePlayerToPlayerDamage" "${ENABLE_PLAYER_TO_PLAYER_DAMAGE}" "bool"
+    apply_config "bEnableFriendlyFire" "${ENABLE_FRIENDLY_FIRE}" "bool"
+    apply_config "bEnableDefenseOtherGuildPlayer" "${ENABLE_DEFENSE_OTHER_GUILD_PLAYER}" "bool"
+    apply_config "bCanPickupOtherGuildDeathPenaltyDrop" "${ENABLE_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP}" "bool"
     #[ -n "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_BASE_CAMP:-}" ] && set_bool bDisplayPvPItemNumOnWorldMap_BaseCamp "$(to_bool "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_BASE_CAMP}")"
     #[ -n "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_PLAYER:-}" ] && set_bool bDisplayPvPItemNumOnWorldMap_Player "$(to_bool "${DISPLAY_PVP_ITEM_NUM_ON_WORLD_MAP_PLAYER}")"
     #[ -n "${ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE:-}" ] && set_field AdditionalDropItemWhenPlayerKillingInPvPMode "${ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE}"
-    [ -n "${ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE:-}" ] && set_field AdditionalDropItemNumWhenPlayerKillingInPvPMode "${ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE}" false
-    [ -n "${ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE:-}" ] && set_bool bAdditionalDropItemWhenPlayerKillingInPvPMode "$(to_bool "${ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE}")"
+    apply_config "AdditionalDropItemNumWhenPlayerKillingInPvPMode" "${ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE}" "field" false
+    apply_config "bAdditionalDropItemWhenPlayerKillingInPvPMode" "${ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE}" "bool"
 
     # PvP 一键开启（优先级高于单独配置，同步启用三项核心开关）
     if [ "${ENABLE_PVP:-false}" = "true" ]; then
         set_bool bIsPvP True
         set_bool bEnablePlayerToPlayerDamage True
         set_bool bEnableDefenseOtherGuildPlayer True
-        log "已一键开启PVP（同步启用bIsPvP + bEnablePlayerToPlayerDamage + bEnableDefenseOtherGuildPlayer）"
+        log "[配置] 一键开启PVP：bIsPvP=True,bEnablePlayerToPlayerDamage=True,bEnableDefenseOtherGuildPlayer=True"
     fi
 
     ## ====================== 时间与全局倍率 ======================
-    [ -n "${DAYTIME_SPEED_RATE:-}" ] && set_field DayTimeSpeedRate "${DAYTIME_SPEED_RATE}" false
-    [ -n "${NIGHTTIME_SPEED_RATE:-}" ] && set_field NightTimeSpeedRate "${NIGHTTIME_SPEED_RATE}" false
-    [ -n "${EXP_RATE:-}" ] && set_field ExpRate "${EXP_RATE}" false
-    [ -n "${PAL_CAPTURE_RATE:-}" ] && set_field PalCaptureRate "${PAL_CAPTURE_RATE}" false
-    [ -n "${PAL_SPAWN_NUM_RATE:-}" ] && set_field PalSpawnNumRate "${PAL_SPAWN_NUM_RATE}" false
-    [ -n "${PAL_EGG_HATCHING_TIME:-}" ] && set_field PalEggDefaultHatchingTime "${PAL_EGG_HATCHING_TIME}" false
-    [ -n "${WORK_SPEED_RATE:-}" ] && set_field WorkSpeedRate "${WORK_SPEED_RATE}" false
-    [ -n "${AUTO_SAVE_SPAN:-}" ] && set_field AutoSaveSpan "${AUTO_SAVE_SPAN}" false
-    [ -n "${SUPPLY_DROP_SPAN:-}" ] && set_field SupplyDropSpan "${SUPPLY_DROP_SPAN}" false
-    [ -n "${MONSTER_FARM_ACTION_SPEED_RATE:-}" ] && set_field MonsterFarmActionSpeedRate "${MONSTER_FARM_ACTION_SPEED_RATE}" false
+    apply_config "DayTimeSpeedRate" "${DAYTIME_SPEED_RATE}" "field" false
+    apply_config "NightTimeSpeedRate" "${NIGHTTIME_SPEED_RATE}" "field" false
+    apply_config "ExpRate" "${EXP_RATE}" "field" false
+    apply_config "PalCaptureRate" "${PAL_CAPTURE_RATE}" "field" false
+    apply_config "PalSpawnNumRate" "${PAL_SPAWN_NUM_RATE}" "field" false
+    apply_config "PalEggDefaultHatchingTime" "${PAL_EGG_HATCHING_TIME}" "field" false
+    apply_config "WorkSpeedRate" "${WORK_SPEED_RATE}" "field" false
+    apply_config "AutoSaveSpan" "${AUTO_SAVE_SPAN}" "field" false
+    apply_config "SupplyDropSpan" "${SUPPLY_DROP_SPAN}" "field" false
+    apply_config "MonsterFarmActionSpeedRate" "${MONSTER_FARM_ACTION_SPEED_RATE}" "field" false
 
     ## ====================== 玩家属性倍率 ======================
-    [ -n "${PLAYER_DAMAGE_RATE_ATTACK:-}" ] && set_field PlayerDamageRateAttack "${PLAYER_DAMAGE_RATE_ATTACK}" false
-    [ -n "${PLAYER_DAMAGE_RATE_DEFENSE:-}" ] && set_field PlayerDamageRateDefense "${PLAYER_DAMAGE_RATE_DEFENSE}" false
-    [ -n "${PLAYER_STOMACH_DECREACE_RATE:-}" ] && set_field PlayerStomachDecreaceRate "${PLAYER_STOMACH_DECREACE_RATE}" false
-    [ -n "${PLAYER_STAMINA_DECREACE_RATE:-}" ] && set_field PlayerStaminaDecreaceRate "${PLAYER_STAMINA_DECREACE_RATE}" false
-    [ -n "${PLAYER_AUTO_HP_REGENE_RATE:-}" ] && set_field PlayerAutoHPRegeneRate "${PLAYER_AUTO_HP_REGENE_RATE}" false
-    [ -n "${PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP:-}" ] && set_field PlayerAutoHpRegeneRateInSleep "${PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP}" false
-    [ -n "${ITEM_WEIGHT_RATE:-}" ] && set_field ItemWeightRate "${ITEM_WEIGHT_RATE}" false
-    [ -n "${EQUIPMENT_DURABILITY_DAMAGE_RATE:-}" ] && set_field EquipmentDurabilityDamageRate "${EQUIPMENT_DURABILITY_DAMAGE_RATE}" false
+    apply_config "PlayerDamageRateAttack" "${PLAYER_DAMAGE_RATE_ATTACK}" "field" false
+    apply_config "PlayerDamageRateDefense" "${PLAYER_DAMAGE_RATE_DEFENSE}" "field" false
+    apply_config "PlayerStomachDecreaceRate" "${PLAYER_STOMACH_DECREACE_RATE}" "field" false
+    apply_config "PlayerStaminaDecreaceRate" "${PLAYER_STAMINA_DECREACE_RATE}" "field" false
+    apply_config "PlayerAutoHPRegeneRate" "${PLAYER_AUTO_HP_REGENE_RATE}" "field" false
+    apply_config "PlayerAutoHpRegeneRateInSleep" "${PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP}" "field" false
+    apply_config "ItemWeightRate" "${ITEM_WEIGHT_RATE}" "field" false
+    apply_config "EquipmentDurabilityDamageRate" "${EQUIPMENT_DURABILITY_DAMAGE_RATE}" "field" false
 
     ## ====================== 帕鲁属性倍率 ======================
-    [ -n "${PAL_DAMAGE_RATE_ATTACK:-}" ] && set_field PalDamageRateAttack "${PAL_DAMAGE_RATE_ATTACK}" false
-    [ -n "${PAL_DAMAGE_RATE_DEFENSE:-}" ] && set_field PalDamageRateDefense "${PAL_DAMAGE_RATE_DEFENSE}" false
-    [ -n "${PAL_STOMACH_DECREACE_RATE:-}" ] && set_field PalStomachDecreaceRate "${PAL_STOMACH_DECREACE_RATE}" false
-    [ -n "${PAL_STAMINA_DECREACE_RATE:-}" ] && set_field PalStaminaDecreaceRate "${PAL_STAMINA_DECREACE_RATE}" false
-    [ -n "${PAL_AUTO_HP_REGENE_RATE:-}" ] && set_field PalAutoHPRegeneRate "${PAL_AUTO_HP_REGENE_RATE}" false
-    [ -n "${PAL_AUTO_HP_REGENE_RATE_IN_SLEEP:-}" ] && set_field PalAutoHpRegeneRateInSleep "${PAL_AUTO_HP_REGENE_RATE_IN_SLEEP}" false
+    apply_config "PalDamageRateAttack" "${PAL_DAMAGE_RATE_ATTACK}" "field" false
+    apply_config "PalDamageRateDefense" "${PAL_DAMAGE_RATE_DEFENSE}" "field" false
+    apply_config "PalStomachDecreaceRate" "${PAL_STOMACH_DECREACE_RATE}" "field" false
+    apply_config "PalStaminaDecreaceRate" "${PAL_STAMINA_DECREACE_RATE}" "field" false
+    apply_config "PalAutoHPRegeneRate" "${PAL_AUTO_HP_REGENE_RATE}" "field" false
+    apply_config "PalAutoHpRegeneRateInSleep" "${PAL_AUTO_HP_REGENE_RATE_IN_SLEEP}" "field" false
 
     ## ====================== 建筑与采集倍率 ======================
-    [ -n "${BUILD_OBJECT_HP_RATE:-}" ] && set_field BuildObjectHpRate "${BUILD_OBJECT_HP_RATE}" false
-    [ -n "${BUILD_OBJECT_DAMAGE_RATE:-}" ] && set_field BuildObjectDamageRate "${BUILD_OBJECT_DAMAGE_RATE}" false
-    [ -n "${BUILD_OBJECT_DETERIORATION_DAMAGE_RATE:-}" ] && set_field BuildObjectDeteriorationDamageRate "${BUILD_OBJECT_DETERIORATION_DAMAGE_RATE}" false
-    [ -n "${COLLECTION_DROP_RATE:-}" ] && set_field CollectionDropRate "${COLLECTION_DROP_RATE}" false
-    [ -n "${COLLECTION_OBJECT_HP_RATE:-}" ] && set_field CollectionObjectHpRate "${COLLECTION_OBJECT_HP_RATE}" false
-    [ -n "${COLLECTION_OBJECT_RESPAWN_SPEED_RATE:-}" ] && set_field CollectionObjectRespawnSpeedRate "${COLLECTION_OBJECT_RESPAWN_SPEED_RATE}" false
-    [ -n "${ENEMY_DROP_ITEM_RATE:-}" ] && set_field EnemyDropItemRate "${ENEMY_DROP_ITEM_RATE}" false
+    apply_config "BuildObjectHpRate" "${BUILD_OBJECT_HP_RATE}" "field" false
+    apply_config "BuildObjectDamageRate" "${BUILD_OBJECT_DAMAGE_RATE}" "field" false
+    apply_config "BuildObjectDeteriorationDamageRate" "${BUILD_OBJECT_DETERIORATION_DAMAGE_RATE}" "field" false
+    apply_config "CollectionDropRate" "${COLLECTION_DROP_RATE}" "field" false
+    apply_config "CollectionObjectHpRate" "${COLLECTION_OBJECT_HP_RATE}" "field" false
+    apply_config "CollectionObjectRespawnSpeedRate" "${COLLECTION_OBJECT_RESPAWN_SPEED_RATE}" "field" false
+    apply_config "EnemyDropItemRate" "${ENEMY_DROP_ITEM_RATE}" "field" false
 
     ## ====================== 掉落物品设置 ======================
-    [ -n "${DROP_ITEM_MAX_NUM:-}" ] && set_field DropItemMaxNum "${DROP_ITEM_MAX_NUM}" false
-    [ -n "${DROP_ITEM_MAX_NUM_UNKO:-}" ] && set_field DropItemMaxNum_UNKO "${DROP_ITEM_MAX_NUM_UNKO}" false
-    [ -n "${DROP_ITEM_ALIVE_MAX_HOURS:-}" ] && set_field DropItemAliveMaxHours "${DROP_ITEM_ALIVE_MAX_HOURS}" false
+    apply_config "DropItemMaxNum" "${DROP_ITEM_MAX_NUM}" "field" false
+    apply_config "DropItemMaxNum_UNKO" "${DROP_ITEM_MAX_NUM_UNKO}" "field" false
+    apply_config "DropItemAliveMaxHours" "${DROP_ITEM_ALIVE_MAX_HOURS}" "field" false
     #[ -n "${PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM:-}" ] && set_field PhysicsActiveDropItemMaxNum "${PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM}" false
 
     ## ====================== 基地与公会管理 ======================
-    [ -n "${BASE_CAMP_MAX_NUM:-}" ] && set_field BaseCampMaxNum "${BASE_CAMP_MAX_NUM}" false
-    [ -n "${BASE_CAMP_MAX_NUM_IN_GUILD:-}" ] && set_field BaseCampMaxNumInGuild "${BASE_CAMP_MAX_NUM_IN_GUILD}" false
-    [ -n "${BASE_CAMP_WORKER_MAX_NUM:-}" ] && set_field BaseCampWorkerMaxNum "${BASE_CAMP_WORKER_MAX_NUM}" false
-    [ -n "${GUILD_PLAYER_MAX_NUM:-}" ] && set_field GuildPlayerMaxNum "${GUILD_PLAYER_MAX_NUM}" false
-    [ -n "${ENABLE_AUTO_RESET_GUILD_NO_ONLINE_PLAYERS:-}" ] && set_bool bAutoResetGuildNoOnlinePlayers "$(to_bool "${ENABLE_AUTO_RESET_GUILD_NO_ONLINE_PLAYERS}")"
-    [ -n "${AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS:-}" ] && set_field AutoResetGuildTimeNoOnlinePlayers "${AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS}" false
+    apply_config "BaseCampMaxNum" "${BASE_CAMP_MAX_NUM}" "field" false
+    apply_config "BaseCampMaxNumInGuild" "${BASE_CAMP_MAX_NUM_IN_GUILD}" "field" false
+    apply_config "BaseCampWorkerMaxNum" "${BASE_CAMP_WORKER_MAX_NUM}" "field" false
+    apply_config "GuildPlayerMaxNum" "${GUILD_PLAYER_MAX_NUM}" "field" false
+    apply_config "bAutoResetGuildNoOnlinePlayers" "${ENABLE_AUTO_RESET_GUILD_NO_ONLINE_PLAYERS}" "bool"
+    apply_config "AutoResetGuildTimeNoOnlinePlayers" "${AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS}" "field" false
     #[ -n "${GUILD_REJOIN_COOLDOWN_MINUTES:-}" ] && set_field GuildRejoinCooldownMinutes "${GUILD_REJOIN_COOLDOWN_MINUTES}" false
     #[ -n "${MAX_GUILDS_PER_FRAME:-}" ] && set_field MaxGuildsPerFrame "${MAX_GUILDS_PER_FRAME}" false
     #[ -n "${ENABLE_INVISIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX:-}" ] && set_bool bInvisibleOtherGuildBaseCampAreaFX "$(to_bool "${ENABLE_INVISIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX}")"
     #[ -n "${ENABLE_BUILD_AREA_LIMIT:-}" ] && set_bool bBuildAreaLimit "$(to_bool "${ENABLE_BUILD_AREA_LIMIT}")"
 
     ## ====================== 敌人与入侵 ======================
-    # egg环境变量 ENABLE_ENEMY 映射入侵开关
-    [ -n "${ENABLE_ENEMY:-}" ] && set_bool bEnableInvaderEnemy "$(to_bool "${ENABLE_ENEMY}")"
-    [ -n "${ENABLE_PREDATOR_BOSS_PAL:-}" ] && set_bool EnablePredatorBossPal "$(to_bool "${ENABLE_PREDATOR_BOSS_PAL}")"
+    apply_config "bEnableInvaderEnemy" "${ENABLE_ENEMY}" "bool"
+    apply_config "EnablePredatorBossPal" "${ENABLE_PREDATOR_BOSS_PAL}" "bool"
 
     ## ====================== 帕鲁箱进出口 ======================
-    [ -n "${ALLOW_GLOBAL_PALBOX_EXPORT:-}" ] && set_bool bAllowGlobalPalboxExport "$(to_bool "${ALLOW_GLOBAL_PALBOX_EXPORT}")"
-    [ -n "${ALLOW_GLOBAL_PALBOX_IMPORT:-}" ] && set_bool bAllowGlobalPalboxImport "$(to_bool "${ALLOW_GLOBAL_PALBOX_IMPORT}")"
+    apply_config "bAllowGlobalPalboxExport" "${ALLOW_GLOBAL_PALBOX_EXPORT}" "bool"
+    apply_config "bAllowGlobalPalboxImport" "${ALLOW_GLOBAL_PALBOX_IMPORT}" "bool"
 
     ## ====================== 重生与惩罚机制 ======================
     #[ -n "${BLOCK_RESPAWN_TIME:-}" ] && set_field BlockRespawnTime "${BLOCK_RESPAWN_TIME}" false
@@ -239,20 +270,21 @@ update_settings() {
     #[ -n "${RESPAWN_PENALTY_TIME_SCALE:-}" ] && set_field RespawnPenaltyTimeScale "${RESPAWN_PENALTY_TIME_SCALE}" false
 
     ## ====================== 属性增强权限 ======================
-    [ -n "${ALLOW_ENHANCE_STAT_HEALTH:-}" ] && set_bool bAllowEnhanceStat_Health "$(to_bool "${ALLOW_ENHANCE_STAT_HEALTH}")"
-    [ -n "${ALLOW_ENHANCE_STAT_ATTACK:-}" ] && set_bool bAllowEnhanceStat_Attack "$(to_bool "${ALLOW_ENHANCE_STAT_ATTACK}")"
-    [ -n "${ALLOW_ENHANCE_STAT_STAMINA:-}" ] && set_bool bAllowEnhanceStat_Stamina "$(to_bool "${ALLOW_ENHANCE_STAT_STAMINA}")"
-    [ -n "${ALLOW_ENHANCE_STAT_WEIGHT:-}" ] && set_bool bAllowEnhanceStat_Weight "$(to_bool "${ALLOW_ENHANCE_STAT_WEIGHT}")"
-    [ -n "${ALLOW_ENHANCE_STAT_WORK_SPEED:-}" ] && set_bool bAllowEnhanceStat_WorkSpeed "$(to_bool "${ALLOW_ENHANCE_STAT_WORK_SPEED}")"
+    apply_config "bAllowEnhanceStat_Health" "${ALLOW_ENHANCE_STAT_HEALTH}" "bool"
+    apply_config "bAllowEnhanceStat_Attack" "${ALLOW_ENHANCE_STAT_ATTACK}" "bool"
+    apply_config "bAllowEnhanceStat_Stamina" "${ALLOW_ENHANCE_STAT_STAMINA}" "bool"
+    apply_config "bAllowEnhanceStat_Weight" "${ALLOW_ENHANCE_STAT_WEIGHT}" "bool"
+    apply_config "bAllowEnhanceStat_WorkSpeed" "${ALLOW_ENHANCE_STAT_WORK_SPEED}" "bool"
 
     ## ====================== 建筑显示 ======================
     #[ -n "${ENABLE_BUILDING_PLAYER_UID_DISPLAY:-}" ] && set_bool bEnableBuildingPlayerUIdDisplay "$(to_bool "${ENABLE_BUILDING_PLAYER_UID_DISPLAY}")"
     #[ -n "${BUILDING_NAME_DISPLAY_CACHE_TTL_SECONDS:-}" ] && set_field BuildingNameDisplayCacheTTLSeconds "${BUILDING_NAME_DISPLAY_CACHE_TTL_SECONDS}" false
 
     ## ====================== 性能与网络视野 ======================
-    [ -n "${MAX_BUILDING_LIMIT_NUM:-}" ] && set_field MaxBuildingLimitNum "${MAX_BUILDING_LIMIT_NUM}" false
+    apply_config "MaxBuildingLimitNum" "${MAX_BUILDING_LIMIT_NUM}" "field" false
     #[ -n "${SERVER_REPLICATE_PAWN_CULL_DISTANCE:-}" ] && set_field ServerReplicatePawnCullDistance "${SERVER_REPLICATE_PAWN_CULL_DISTANCE}" false
 
+    log "游戏参数配置 - 写入完成"
     ## 恢复严格错误检测，脚本后续命令出错即退出
     set -e
 }
