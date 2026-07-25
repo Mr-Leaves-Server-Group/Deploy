@@ -59,7 +59,7 @@ SETTINGS_FILE="/home/container/Pal/Saved/Config/WindowsServer/PalWorldSettings.i
 
 # 简易日志输出函数
 log() {
-    echo -e "[配置模块] $*"
+    echo -e "[菜菜云MLSG] $*"
 }
 
 ## 将字符串 "true"/"false" 转换为UE配置文件所需的 "True"/"False" 格式
@@ -181,6 +181,7 @@ update_settings() {
     #[ -n "${ENABLE_CHARACTER_RECREATE_IN_HARDCORE:-}" ] && set_bool bCharacterRecreateInHardcore "$(to_bool "${ENABLE_CHARACTER_RECREATE_IN_HARDCORE}")"
 
     ## ====================== PvP 细节配置 ======================
+    apply_config "bIsPvP" "${ENABLE_PVP}" "bool"
     apply_config "bEnablePlayerToPlayerDamage" "${ENABLE_PLAYER_TO_PLAYER_DAMAGE}" "bool"
     apply_config "bEnableFriendlyFire" "${ENABLE_FRIENDLY_FIRE}" "bool"
     apply_config "bEnableDefenseOtherGuildPlayer" "${ENABLE_DEFENSE_OTHER_GUILD_PLAYER}" "bool"
@@ -190,14 +191,6 @@ update_settings() {
     #[ -n "${ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE:-}" ] && set_field AdditionalDropItemWhenPlayerKillingInPvPMode "${ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE}"
     apply_config "AdditionalDropItemNumWhenPlayerKillingInPvPMode" "${ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE}" "field" false
     apply_config "bAdditionalDropItemWhenPlayerKillingInPvPMode" "${ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE}" "bool"
-
-    # PvP 一键开启（优先级高于单独配置，同步启用三项核心开关）
-    if [ "${ENABLE_PVP:-false}" = "true" ]; then
-        set_bool bIsPvP True
-        set_bool bEnablePlayerToPlayerDamage True
-        set_bool bEnableDefenseOtherGuildPlayer True
-        log "[配置] 一键开启PVP：bIsPvP=True,bEnablePlayerToPlayerDamage=True,bEnableDefenseOtherGuildPlayer=True"
-    fi
 
     ## ====================== 时间与全局倍率 ======================
     apply_config "DayTimeSpeedRate" "${DAYTIME_SPEED_RATE}" "field" false
