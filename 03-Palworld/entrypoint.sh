@@ -54,32 +54,48 @@ else
 fi
 
 # =========================================================
-# [MLSG 附加环境配置] 修复卡死与日志转发系统
+# [MLSG 附加环境配置] 修复卡死与日志转发/归档系统
 # =========================================================
 
-# 1. 全局注入 Proton 修复参数（面板启动命令里就不需要写 env 了）
+# 0. 归档并清理旧的游戏原生控制台日志
+CONSOLE_LOG_DIR="/home/container/Pal/Saved/Logs"
+CONSOLE_ARCHIVE_DIR="${CONSOLE_LOG_DIR}/History_Logs"
+mkdir -p "${CONSOLE_LOG_DIR}" "${CONSOLE_ARCHIVE_DIR}"
+
+if [ -f "${CONSOLE_LOG_DIR}/PalServer-Console.log" ]; then
+    TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+    mv "${CONSOLE_LOG_DIR}/PalServer-Console.log" "${CONSOLE_ARCHIVE_DIR}/PalServer-Console_${TIMESTAMP}.log"
+    echo "[MLSG-INIT] 已归档历史控制台日志: PalServer-Console_${TIMESTAMP}.log"
+fi
+
+# 1. 全局注入 Proton 修复参数
 export PROTON_NO_FSYNC=1
 export PROTON_NO_ESYNC=1
+export WINEFSYNC=0 
+export WINEESYNC=0
 export WINEDLLOVERRIDES="xalia.exe=d,xalia64.exe=d,xalia=d"
 
+# [新增] 自动清理遗留的损坏临时存档！防止死锁
+echo "[MLSG-INIT] 正在扫描并清理遗留的 .new_tmp 临时文件..."
+if [ -d "/home/container/Pal/Saved/SaveGames" ]; then
+    find /home/container/Pal/Saved/SaveGames -type f -name "*.new_tmp" -exec rm -f {} \;
+    echo "[MLSG-INIT] 临时文件清理完毕，确保存档环境干净。"
+fi
+
 # 2. Palworld 原生日志准备与后台转发
-PAL_LOG_DIR="/home/container/Pal/Saved/Logs"
-mkdir -p "$PAL_LOG_DIR"
-touch "$PAL_LOG_DIR/Pal.log"
-tail -F "$PAL_LOG_DIR/Pal.log" &
+touch "$CONSOLE_LOG_DIR/Pal.log"
+tail -F "$CONSOLE_LOG_DIR/Pal.log" &
 
 # 3. PalDefender 日志归档与后台动态捕捉
 PD_LOG_DIR="/home/container/Pal/Binaries/Win64/PalDefender/Logs"
 PD_ARCHIVE_DIR="${PD_LOG_DIR}/History_Logs"
 
-echo "[MLSG-INIT] 正在清理并归档历史日志..."
+echo "[MLSG-INIT] 正在清理并归档 PalDefender 历史日志..."
 if [ -d "$PD_LOG_DIR" ]; then
     mkdir -p "$PD_ARCHIVE_DIR"
-    # 将旧的 .log 文件移动到归档目录
     find "$PD_LOG_DIR" -maxdepth 1 -name "*.log" -type f -exec mv {} "$PD_ARCHIVE_DIR/" \;
 fi
 
-# 挂起一个后台进程，蹲守新生成的 PalDefender 日志
 (
     while true; do
         NEW_LOG=$(find "$PD_LOG_DIR" -maxdepth 1 -name "*.log" -type f 2>/dev/null | head -n 1)
@@ -96,7 +112,7 @@ fi
 # 替换启动参数变量
 MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
 
-# 启动游戏服务器
+# 启动游戏服务器（同时输出到控制台并实时写入 PalServer-Console.log）
 echo -e "正在启动服务器..."
 echo -e ":/home/container$ ${MODIFIED_STARTUP}"
-eval ${MODIFIED_STARTUP}
+eval ${MODIFIED_STARTUP} 2>&1 | tee "${CONSOLE_LOG_DIR}/PalServer-Console.log"

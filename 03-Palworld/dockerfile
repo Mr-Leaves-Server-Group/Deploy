@@ -34,6 +34,7 @@ RUN dpkg --add-architecture i386 \
         nano \
         libfreetype6 \
         unzip \
+        lsof \
         procps \
         gosu \
     # 配置UTF-8 locale，消除PalDefender编码报错
