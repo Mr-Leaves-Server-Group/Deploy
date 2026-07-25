@@ -53,6 +53,46 @@ else
     echo -e "已关闭自动更新，跳过服务器文件检查"
 fi
 
+# =========================================================
+# [MLSG 附加环境配置] 修复卡死与日志转发系统
+# =========================================================
+
+# 1. 全局注入 Proton 修复参数（面板启动命令里就不需要写 env 了）
+export PROTON_NO_FSYNC=1
+export PROTON_NO_ESYNC=1
+export WINEDLLOVERRIDES="xalia.exe=d,xalia64.exe=d,xalia=d"
+
+# 2. Palworld 原生日志准备与后台转发
+PAL_LOG_DIR="/home/container/Pal/Saved/Logs"
+mkdir -p "$PAL_LOG_DIR"
+touch "$PAL_LOG_DIR/Pal.log"
+tail -F "$PAL_LOG_DIR/Pal.log" &
+
+# 3. PalDefender 日志归档与后台动态捕捉
+PD_LOG_DIR="/home/container/Pal/Binaries/Win64/PalDefender/Logs"
+PD_ARCHIVE_DIR="${PD_LOG_DIR}/History_Logs"
+
+echo "[MLSG-INIT] 正在清理并归档历史日志..."
+if [ -d "$PD_LOG_DIR" ]; then
+    mkdir -p "$PD_ARCHIVE_DIR"
+    # 将旧的 .log 文件移动到归档目录
+    find "$PD_LOG_DIR" -maxdepth 1 -name "*.log" -type f -exec mv {} "$PD_ARCHIVE_DIR/" \;
+fi
+
+# 挂起一个后台进程，蹲守新生成的 PalDefender 日志
+(
+    while true; do
+        NEW_LOG=$(find "$PD_LOG_DIR" -maxdepth 1 -name "*.log" -type f 2>/dev/null | head -n 1)
+        if [ -n "$NEW_LOG" ]; then
+            echo "[MLSG-INIT] 检测到反作弊日志: $(basename "$NEW_LOG")，开启转发"
+            tail -F "$NEW_LOG"
+            break
+        fi
+        sleep 1
+    done
+) &
+# =========================================================
+
 # 替换启动参数变量
 MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
 
