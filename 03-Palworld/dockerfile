@@ -3,43 +3,47 @@
 # ---------------------------------------------
 FROM        debian:bookworm-slim
 
-LABEL       author="Ken Ren" maintainer="ken.ren98@gmail.com"
+LABEL       author="KenRen" maintainer="ken.ren98@gmail.com"
 
-# Install required packages
-RUN         dpkg --add-architecture i386
-RUN         apt update
-RUN         apt install -y --no-install-recommends \
-                wget \
-                iproute2 \
-                gnupg2 \
-                software-properties-common \
-                libntlm0 \
-                winbind \
-                xvfb \
-                xauth \
-                libncurses5-dev:i386 \
-                libncurses6 \
-                dbus \
-                libgdiplus \
-                lib32gcc-s1
-RUN         apt install -y \
-                alsa-tools \
-                libpulse0 \
-                pulseaudio \
-                libpulse-dev \
-                libasound2 \
-                libao-common \
-                gnutls-bin \
-                gnupg \
-                locales \
-                cabextract \
-                curl \
-                python3 \
-                python3-pip \
-                python3-setuptools \
-                tini \
-                file \
-                pipx
+# ---- 基础依赖 + Proton/Wine + Steamcmd + UE4SS + PalDefender 全套必备包 ----
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        wget \
+        iproute2 \
+        gnupg2 \
+        software-properties-common \
+        libncurses5-dev:i386 \
+        libncurses6 \
+        dbus \
+        lib32gcc-s1 \
+        lib32stdc++6 \
+        locales \
+        cabextract \
+        curl \
+        python3 \
+        python3-pip \
+        python3-setuptools \
+        tini \
+        file \
+        pipx \
+        libasound2 \
+        gnutls-bin \
+        gnupg \
+        ca-certificates \
+        nano \
+        libfreetype6 \
+        unzip \
+        procps \
+        gosu \
+    # 配置UTF-8 locale，消除PalDefender编码报错
+    && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+    && dpkg-reconfigure --frontend=noninteractive locales \
+    && rm -rf /var/lib/apt/lists/*
+
+# 全局环境变量：统一字符集
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 
 # 安装 Pronton-GE 
 RUN         curl -sLOJ "$(curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/tags/GE-Proton10-34 | grep browser_download_url | cut -d\" -f4  | egrep .tar.gz)"
