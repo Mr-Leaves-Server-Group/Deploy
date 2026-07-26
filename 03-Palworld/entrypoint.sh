@@ -49,15 +49,13 @@ else
 fi
 
 # =========================================================
-# [MLSG 自动化高级修复] 借助 Xvfb 虚拟显存环境静默安装 VC++ 运行时
+# [MLSG 自动化高级修复] 从微软官方直链下载并精准静默安装 VC++ 运行时
 # =========================================================
 APP_ID="${SRCDS_APPID:-2394010}"
 COMPAT_PFX="/home/container/.steam/steam/steamapps/compatdata/${APP_ID}/pfx"
-# 标记文件存放在 Pal 目录下，保持根目录整洁
 VC_DONE_MARKER="/home/container/Pal/.vc_installed.done"
 TEMP_VC_INSTALLER="/tmp/vc_redist.x64.exe"
-MICROSOFT_VC64_URL="https://aka.ms/vc14/vc_redist.x64.exe"
-MICROSOFT_VC86_URL="https://aka.ms/vc14/vc_redist.x86.exe"
+MICROSOFT_VC_URL="https://aka.ms/vc14/vc_redist.x64.exe"
 
 # 1. 动态搜寻 Proton 的 Wine 路径并导出到 PATH
 PROTON_WINE_BIN=$(find /opt /usr /home -name "wine" -type f 2>/dev/null | head -n 1)
@@ -69,8 +67,9 @@ fi
 if [ ! -f "$VC_DONE_MARKER" ]; then
     echo "[MLSG] 未检测到完整的 VC++ 运行库初始化标记，开始在线部署..."
     
-    # 确保 Pal 文件夹路径存在，以便写入标记
+    # 确保必要目录存在
     mkdir -p /home/container/Pal
+    mkdir -p "$COMPAT_PFX"
     
     # 准备虚拟显存环境（解决无头环境无法创建窗口的 0xcb 错误）
     XVFB_CMD=""
@@ -86,17 +85,27 @@ if [ ! -f "$VC_DONE_MARKER" ]; then
     if command -v curl &>/dev/null || command -v wget &>/dev/null; then
         echo "[MLSG] 正在从微软官方直链下载最新的 VC++ x64 Redistributable..."
         if command -v curl &>/dev/null; then
-            curl -sSL -L "$MICROSOFT_VC64_URL" -o "$TEMP_VC_INSTALLER"
+            curl -sSL -L "$MICROSOFT_VC_URL" -o "$TEMP_VC_INSTALLER"
         else
-            wget -q -O "$TEMP_VC_INSTALLER" "$MICROSOFT_VC64_URL"
+            wget -q -O "$TEMP_VC_INSTALLER" "$MICROSOFT_VC_URL"
         fi
 
         if [ -f "$TEMP_VC_INSTALLER" ] && command -v wine &>/dev/null; then
             echo "[MLSG] 下载完成，正在通过虚拟显存环境执行精准静默安装，请稍候..."
             
-            # 使用 Xvfb 包装 Wine 执行标准微软安装参数
-            $XVFB_CMD WINEPREFIX="$COMPAT_PFX" wine "$TEMP_VC_INSTALLER" /install /quiet /norestart /log "Pal\PalVC64Install.log"
+            # 正确导出 WINEPREFIX 环境变量，避免语法解析错误
+            export WINEPREFIX="$COMPAT_PFX"
             
+            # 使用 Xvfb 运行 Wine，并将日志输出到标准 Windows Z 盘路径下
+            $XVFB_CMD wine "$TEMP_VC_INSTALLER" /install /quiet /norestart /log "Z:\\home\\container\\Pal\\PalVC64Install.log"
+            
+            # 打印安装日志到控制台屏幕，方便排查
+            if [ -f "/home/container/Pal/PalVC64Install.log" ]; then
+                echo "================ [VC++ 安装日志输出] ================"
+                cat "/home/container/Pal/PalVC64Install.log"
+                echo "====================================================="
+            fi
+
             # 清理临时安装包
             rm -f "$TEMP_VC_INSTALLER"
             
