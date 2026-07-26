@@ -113,7 +113,8 @@ fi
 # =========================================================
 
 # 替换启动参数变量
-MODIFIED_STARTUP="PROTON_NO_FSYNC=1 PROTON_NO_ESYNC=1 WINEFSYNC=0 WINEESYNC=0 WINEDLLOVERRIDES=\"dwmapi,d3d9,winmm,concrt140,msvcp140,msvcp140_1,msvcp140_2,msvcp140_atomic_wait,msvcp140_codecvt_ids,ucrtbase,vccorlib140,vcomp140,vcruntime140,vcruntime140_1=n,b;xalia=d\" ${PARSED_STARTUP}"
+MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
+MODIFIED_STARTUP="PROTON_NO_FSYNC=1 PROTON_NO_ESYNC=1 WINEFSYNC=0 WINEESYNC=0 WINEDLLOVERRIDES=\"dwmapi,d3d9,winmm,concrt140,msvcp140,msvcp140_1,msvcp140_2,msvcp140_atomic_wait,msvcp140_codecvt_ids,ucrtbase,vccorlib140,vcomp140,vcruntime140,vcruntime140_1=n,b;xalia=d\" ${MODIFIED_STARTUP}"
 
 # 启动游戏服务器（同时输出到控制台并实时写入 PalServer-Console.log）
 echo -e "[MLSG] 正在启动服务器..."
