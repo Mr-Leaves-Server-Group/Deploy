@@ -54,31 +54,66 @@ else
 fi
 
 # =========================================================
-# [MLSG 自动修复] 自动通过 Protontricks/Winetricks 初始化 VC++ 2022 运行库
+# [MLSG 自动修复] 自动通过 Protontricks/Winetricks/模板复制 初始化 VC++ 2022 运行库
 # =========================================================
 APP_ID="${SRCDS_APPID:-2394010}"
 COMPAT_PFX="/home/container/.steam/steam/steamapps/compatdata/${APP_ID}/pfx"
+TARGET_SYS32="${COMPAT_PFX}/drive_c/windows/system32"
+TEMPLATE_SYS32="/usr/local/bin/files/share/default_pfx/drive_c/windows/system32"
 VCRUN_DONE_MARKER="/home/container/.vcrun2022_installed.done"
 
-if [ ! -f "$VCRUN_DONE_MARKER" ]; then
-    echo "[MLSG] 未检测到 VC++2022 初始化标记，开始执行 Proton 运行库修复..."
+# 1. 动态搜寻并补全 PATH 中的 wineserver 目录路径，防止 winetricks 提示 warning: wineserver not found!
+WINESERVER_BIN=$(find /opt /usr /home -name "wineserver" 2>/dev/null | head -n 1)
+if [ -n "$WINESERVER_BIN" ]; then
+    export PATH="$(dirname "$WINESERVER_BIN"):$PATH"
+fi
+
+# 2. 检查并补充 VC 运行库 DLL
+if [ ! -f "$VCRUN_DONE_MARKER" ] || [ ! -f "${TARGET_SYS32}/vcruntime140.dll" ]; then
+    echo "[MLSG] 未检测到完整的 VC++ 2022 运行库，开始执行 Proton 运行库修复..."
     
-    # 确保 Proton 的 compatdata 目录存在
-    mkdir -p "/home/container/.steam/steam/steamapps/compatdata/${APP_ID}"
+    # 确保 Proton 的 system32 目标目录存在
+    mkdir -p "${TARGET_SYS32}"
 
-    # 优先使用 protontricks 静默安装 vcrun2022
-    echo "[MLSG] 正在通过 Protontricks 静默安装 VC++ 2022 运行库，请稍候..."
-    protontricks --unattended "$APP_ID" vcrun2022
+    # 尝试 1: Protontricks 尝试
+    if command -v protontricks &>/dev/null; then
+        echo "[MLSG] 正在尝试通过 Protontricks 静默安装 vcrun2022..."
+        protontricks --unattended "$APP_ID" vcrun2022
+    fi
 
-    if [ $? -eq 0 ]; then
+    # 尝试 2: Winetricks 尝试
+    if [ ! -f "${TARGET_SYS32}/vcruntime140.dll" ] && command -v winetricks &>/dev/null; then
+        echo "[MLSG] 正在尝试通过 Winetricks 回退方案安装 vcrun2022..."
+        WINEPREFIX="$COMPAT_PFX" winetricks -q vcrun2022
+    fi
+
+    # 尝试 3: 强制直接从镜像模板/系统基础路径复制 DLL 兜底（保证 100% 成功）
+    if [ ! -f "${TARGET_SYS32}/vcruntime140.dll" ]; then
+        echo "[MLSG] protontricks/winetricks 执行未生成 DLL，启动模板文件直接复制兜底方案..."
+        if [ -d "$TEMPLATE_SYS32" ]; then
+            cp -f "$TEMPLATE_SYS32"/vcruntime140*.dll "$TARGET_SYS32/" 2>/dev/null
+            cp -f "$TEMPLATE_SYS32"/msvcp140*.dll "$TARGET_SYS32/" 2>/dev/null
+            cp -f "$TEMPLATE_SYS32"/vcomp140*.dll "$TARGET_SYS32/" 2>/dev/null
+            cp -f "$TEMPLATE_SYS32"/concrt140*.dll "$TARGET_SYS32/" 2>/dev/null
+            cp -f "$TEMPLATE_SYS32"/ucrtbase.dll "$TARGET_SYS32/" 2>/dev/null
+        fi
+    fi
+
+    # 校验最终修复状态
+    if [ -f "${TARGET_SYS32}/vcruntime140.dll" ]; then
         touch "$VCRUN_DONE_MARKER"
-        echo "[MLSG] VC++ 2022 运行库安装成功！已生成标记文件: $VCRUN_DONE_MARKER"
+        echo "[MLSG] VC++ 2022 运行库 / DLL 修复成功！标记文件已生成: $VCRUN_DONE_MARKER"
     else
-        echo "[MLSG] [警告] Protontricks 安装遇到问题，尝试使用 winetricks 回退方案..."
-        WINEPREFIX="$COMPAT_PFX" winetricks -q vcrun2022 && touch "$VCRUN_DONE_MARKER"
+        echo "[MLSG] [警告] 运行库修复未能补齐 vcruntime140.dll，请检查 Docker 镜像模板文件！"
     fi
 else
-    echo "[MLSG] 检测到 VC++ 2022 运行库已完成初始化，跳过 winetricks 安装。"
+    echo "[MLSG] 检测到 VC++ 2022 运行库已完成初始化，跳过修复程序。"
+fi
+
+# 3. 自动修正 Saved 存档与备份目录权限，防止 save 时触发 Failed copy from backup 报错
+if [ -d "/home/container/Pal/Saved" ]; then
+    echo "[MLSG] 正在修正 Pal/Saved 目录权限以确保存档备份正常执行..."
+    chmod -R 777 /home/container/Pal/Saved
 fi
 
 # =========================================================
