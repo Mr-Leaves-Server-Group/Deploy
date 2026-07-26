@@ -49,83 +49,53 @@ else
 fi
 
 # =========================================================
-# [MLSG 自动化高级修复] 从微软官方直链下载并精准静默安装 VC++ 运行时
+# [MLSG 自动化高级修复] 直接部署离线打包的 VC++ 运行库 DLL
 # =========================================================
 APP_ID="${SRCDS_APPID:-2394010}"
 COMPAT_PFX="/home/container/.steam/steam/steamapps/compatdata/${APP_ID}/pfx"
 VC_DONE_MARKER="/home/container/Pal/.vc_installed.done"
-TEMP_VC_INSTALLER="/tmp/vc_redist.x64.exe"
-MICROSOFT_VC_URL="https://aka.ms/vc14/vc_redist.x64.exe"
 
-# 1. 动态搜寻 Proton 的 Wine 路径并导出到 PATH
-PROTON_WINE_BIN=$(find /opt /usr /home -name "wine" -type f 2>/dev/null | head -n 1)
-if [ -n "$PROTON_WINE_BIN" ]; then
-    export PATH="$(dirname "$PROTON_WINE_BIN"):$PATH"
-fi
-
-# 2. 检查并执行在线静默安装
 if [ ! -f "$VC_DONE_MARKER" ]; then
-    echo "[MLSG] 未检测到完整的 VC++ 运行库初始化标记，开始在线部署..."
+    echo "[MLSG] 未检测到 VC++ 运行库初始化标记，开始部署离线 DLL..."
     
-    # 确保必要目录存在
     mkdir -p /home/container/Pal
-    mkdir -p "$COMPAT_PFX"
-    
-    # 准备虚拟显存环境（解决无头环境无法创建窗口的 0xcb 错误）
-    XVFB_CMD=""
-    if command -v xvfb-run &>/dev/null; then
-        XVFB_CMD="xvfb-run -a"
-    elif command -v Xvfb &>/dev/null; then
-        Xvfb :99 -screen 0 1024x768x16 &>/dev/null &
-        export DISPLAY=:99
-        sleep 1
-    fi
+    mkdir -p "$COMPAT_PFX/drive_c/windows/system32"
+    mkdir -p "$COMPAT_PFX/drive_c/windows/syswow64"
 
-    # 检查下载工具
-    if command -v curl &>/dev/null || command -v wget &>/dev/null; then
-        echo "[MLSG] 正在从微软官方直链下载最新的 VC++ x64 Redistributable..."
-        if command -v curl &>/dev/null; then
-            curl -sSL -L "$MICROSOFT_VC_URL" -o "$TEMP_VC_INSTALLER"
-        else
-            wget -q -O "$TEMP_VC_INSTALLER" "$MICROSOFT_VC_URL"
+    if [ -f "/tmp/WinFixDLLs.zip" ]; then
+        # 创建临时解压目录
+        mkdir -p /tmp/WinFixDLLs
+        
+        # 优先使用 unzip，如果没有则尝试 7zz 解压
+        if command -v unzip &>/dev/null; then
+            unzip -q /tmp/WinFixDLLs.zip -d /tmp/WinFixDLLs
+        elif command -v 7zz &>/dev/null; then
+            7zz x /tmp/WinFixDLLs.zip -o/tmp/WinFixDLLs &>/dev/null
         fi
 
-        if [ -f "$TEMP_VC_INSTALLER" ] && command -v wine &>/dev/null; then
-            echo "[MLSG] 下载完成，正在通过虚拟显存环境执行精准静默安装，请稍候..."
-            
-            # 正确导出 WINEPREFIX 环境变量，避免语法解析错误
-            export WINEPREFIX="$COMPAT_PFX"
-            
-            # 使用 Xvfb 运行 Wine，并将日志输出到标准 Windows Z 盘路径下
-            $XVFB_CMD wine "$TEMP_VC_INSTALLER" /install /quiet /norestart /log "Z:\\home\\container\\Pal\\PalVC64Install.log"
-            
-            # 打印安装日志到控制台屏幕，方便排查
-            if [ -f "/home/container/Pal/PalVC64Install.log" ]; then
-                echo "================ [VC++ 安装日志输出] ================"
-                cat "/home/container/Pal/PalVC64Install.log"
-                echo "====================================================="
-            fi
-
-            # 清理临时安装包
-            rm -f "$TEMP_VC_INSTALLER"
-            
-            # 写入完成标记至 Pal 目录
-            touch "$VC_DONE_MARKER"
-            echo "[MLSG] VC++ 运行库静默安装完成！标记写入: $VC_DONE_MARKER"
-        else
-            echo "[MLSG] [错误] 安装包下载失败或 Wine 命令未找到，跳过安装。"
+        # 对应拷贝 system32 文件
+        if [ -d "/tmp/WinFixDLLs/system32" ]; then
+            cp -rf /tmp/WinFixDLLs/system32/* "$COMPAT_PFX/drive_c/windows/system32/"
+            echo "[MLSG] system32 运行库注入成功！"
         fi
+        
+        # 对应拷贝 syswow64 文件
+        if [ -d "/tmp/WinFixDLLs/syswow64" ]; then
+            cp -rf /tmp/WinFixDLLs/syswow64/* "$COMPAT_PFX/drive_c/windows/syswow64/"
+            echo "[MLSG] syswow64 运行库注入成功！"
+        fi
+
+        # 清理临时文件
+        rm -rf /tmp/WinFixDLLs /tmp/WinFixDLLs.zip
+        
+        # 写入完成标记
+        touch "$VC_DONE_MARKER"
+        echo "[MLSG] 离线 VC++ 运行库 DLL 部署完成！标记已写入: $VC_DONE_MARKER"
     else
-        echo "[MLSG] [警告] 容器内未找到 curl 或 wget，无法下载 VC++ 安装包。"
+        echo "[MLSG] [警告] 未找到 /tmp/WinFixDLLs.zip，跳过离线运行库部署。"
     fi
 else
-    echo "[MLSG] VC++ 运行库已完成初始化，跳过安装程序。"
-fi
-
-# 3. 自动修正 Saved 存档与备份目录权限，防止 save 时触发 Failed copy from backup 报错
-if [ -d "/home/container/Pal/Saved" ]; then
-    echo "[MLSG] 正在修正 Pal/Saved 目录权限以确保存档备份正常执行..."
-    chmod -R 777 /home/container/Pal/Saved
+    echo "[MLSG] VC++ 运行库已完成初始化，跳过。"
 fi
 
 # =========================================================
