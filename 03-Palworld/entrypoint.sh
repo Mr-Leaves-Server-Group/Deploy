@@ -95,7 +95,7 @@ if [ ! -f "$VC_DONE_MARKER" ]; then
             echo "[MLSG] 下载完成，正在通过虚拟显存环境执行精准静默安装，请稍候..."
             
             # 使用 Xvfb 包装 Wine 执行标准微软安装参数
-            $XVFB_CMD WINEPREFIX="$COMPAT_PFX" wine "$TEMP_VC_INSTALLER" /install /quiet /norestart /log "Pal/PalVC64Install.log" &>/dev/null
+            $XVFB_CMD WINEPREFIX="$COMPAT_PFX" wine "$TEMP_VC_INSTALLER" /install /quiet /norestart /log "Pal\PalVC64Install.log"
             
             # 清理临时安装包
             rm -f "$TEMP_VC_INSTALLER"
