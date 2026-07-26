@@ -70,6 +70,18 @@ export WINEFSYNC=0
 export WINEESYNC=0
 export WINEDLLOVERRIDES="dwmapi,d3d9,winmm,concrt140,msvcp140,msvcp140_1,msvcp140_2,msvcp140_atomic_wait,msvcp140_codecvt_ids,ucrtbase,vccorlib140,vcomp140,vcruntime140,vcruntime140_1=n,b;xalia=d"
 
+# ----------------------------------------------------
+# 打印所有环境变量的值，方便在日志控制台中直接查看核对
+# ----------------------------------------------------
+echo "=================================================="
+echo "[MLSG] 检查当前已加载的环境变量值："
+echo "  PROTON_NO_FSYNC  = ${PROTON_NO_FSYNC}"
+echo "  PROTON_NO_ESYNC  = ${PROTON_NO_ESYNC}"
+echo "  WINEFSYNC        = ${WINEFSYNC}"
+echo "  WINEESYNC        = ${WINEESYNC}"
+echo "  WINEDLLOVERRIDES = ${WINEDLLOVERRIDES}"
+echo "=================================================="
+
 # 自动清理遗留的损坏临时存档！防止死锁
 echo "[MLSG] 正在扫描并清理遗留的 .new_tmp 临时文件..."
 if [ -d "/home/container/Palworld/Pal/Saved/SaveGames" ]; then
@@ -101,7 +113,7 @@ fi
 # =========================================================
 
 # 替换启动参数变量
-MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
+MODIFIED_STARTUP="PROTON_NO_FSYNC=1 PROTON_NO_ESYNC=1 WINEFSYNC=0 WINEESYNC=0 WINEDLLOVERRIDES=\"dwmapi,d3d9,winmm,concrt140,msvcp140,msvcp140_1,msvcp140_2,msvcp140_atomic_wait,msvcp140_codecvt_ids,ucrtbase,vccorlib140,vcomp140,vcruntime140,vcruntime140_1=n,b;xalia=d\" ${PARSED_STARTUP}"
 
 # 启动游戏服务器（同时输出到控制台并实时写入 PalServer-Console.log）
 echo -e "[MLSG] 正在启动服务器..."
