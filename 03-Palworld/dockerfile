@@ -5,41 +5,57 @@ FROM        debian:trixie-slim
 
 LABEL       author="KenRen" maintainer="ken.ren98@gmail.com"
 
-#  安装依赖
-RUN         dpkg --add-architecture i386
-RUN         apt update
-RUN         apt install -y --no-install-recommends \
-                wget \
-                iproute2 \
-                gnupg2 \
-                libntlm0 \
-                winbind \
-                xvfb \
-                xauth \
-                libncurses-dev:i386 \
-                libncurses6 \
-                dbus \
-                libgdiplus \
-                lib32gcc-s1 \
-                libc6
-RUN         apt install -y \
-                alsa-tools \
-                libpulse0 \
-                pulseaudio \
-                libpulse-dev \
-                libasound2-dev \
-                libao-common \
-                gnutls-bin \
-                gnupg \
-                locales \
-                cabextract \
-                curl \
-                python3 \
-                python3-pip \
-                python3-setuptools \
-                tini \
-                file \
-                pipx
+# 安装全套依赖：原版全部必备包 + 你现有trixie额外新增包，补齐缺失项，配置locale并清理缓存
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        # 原版基础必备
+        wget \
+        iproute2 \
+        gnupg2 \
+        software-properties-common \
+        libncurses5-dev:i386 \
+        libncurses6 \
+        dbus \
+        lib32gcc-s1 \
+        lib32stdc++6 \
+        locales \
+        cabextract \
+        curl \
+        python3 \
+        python3-pip \
+        python3-setuptools \
+        tini \
+        file \
+        pipx \
+        libasound2 \
+        gnutls-bin \
+        gnupg \
+        ca-certificates \
+        nano \
+        libfreetype6 \
+        unzip \
+        lsof \
+        procps \
+        gosu \
+        # 你原有trixie镜像额外添加的包
+        libntlm0 \
+        winbind \
+        xvfb \
+        xauth \
+        libgdiplus \
+        libc6 \
+        alsa-tools \
+        libpulse0 \
+        pulseaudio \
+        libpulse-dev \
+        libasound2-dev \
+        libao-common \
+    # 配置UTF-8 locale，解决PalDefender编码/中文乱码
+    && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+    && dpkg-reconfigure --frontend=noninteractive locales \
+    # 清理apt缓存，压缩镜像体积
+    && rm -rf /var/lib/apt/lists/*
 
 # 全局环境变量：统一字符集
 ENV LANG=en_US.UTF-8
@@ -53,10 +69,17 @@ RUN         rm GE-Proton*.*
 # 设置 Pronton 环境变量
 ENV STEAM_COMPAT_CLIENT_INSTALL_PATH=/home/container/Steam \
     STEAM_COMPAT_DATA_PATH=/home/container/.steam/steam/steamapps/compatdata/2394010 \
-    STEAMCMD=/home/container/Steam/steamcmd/steamcmd.sh \
+    WINEPREFIX=/home/container/Steam/steamapps/compatdata/2394010/pfx \
+    STEAMCMD=/home/container/steamcmd/steamcmd.sh \
     SERVER_DIR=/home/container \
     SteamAppId=2394010 \
-    WINEDEBUG=-all
+    STEAM_APPID=2394010 \
+    SRCDS_APPID=2394010 \
+    WINDOWS_INSTALL=1 \
+    SDL_VIDEODRIVER=dummy \
+    WINEDEBUG=-all 
+
+
 
 # 修复 machine-id 问题
 RUN         rm -f /etc/machine-id
