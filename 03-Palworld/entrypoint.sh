@@ -40,7 +40,7 @@ if [ -z ${AUTO_UPDATE} ] || [ "${AUTO_UPDATE}" == "1" ]; then
             STEAM_PASS=""
             STEAM_AUTH=""
         fi
-        ./steamcmd/steamcmd.sh +force_install_dir /home/container +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} $( [[ "${WINDOWS_INSTALL}" == "1" ]] && printf %s '+@sSteamCmdForcePlatformType windows' ) +app_update 1007 +app_update ${SRCDS_APPID} $( [[ -z ${SRCDS_BETAID} ]] || printf %s "-beta ${SRCDS_BETAID}" ) $( [[ -z ${SRCDS_BETAPASS} ]] || printf %s "-betapassword ${SRCDS_BETAPASS}" ) $( [[ -z ${HLDS_GAME} ]] || printf %s "+app_set_config 90 mod ${HLDS_GAME}" ) ${INSTALL_FLAGS} $( [[ "${VALIDATE}" == "1" ]] && printf %s 'validate' ) +quit
+        ./steamcmd/steamcmd.sh +force_install_dir /home/container/Palworld +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} $( [[ "${WINDOWS_INSTALL}" == "1" ]] && printf %s '+@sSteamCmdForcePlatformType windows' ) +app_update 1007 +app_update ${SRCDS_APPID} $( [[ -z ${SRCDS_BETAID} ]] || printf %s "-beta ${SRCDS_BETAID}" ) $( [[ -z ${SRCDS_BETAPASS} ]] || printf %s "-betapassword ${SRCDS_BETAPASS}" ) $( [[ -z ${HLDS_GAME} ]] || printf %s "+app_set_config 90 mod ${HLDS_GAME}" ) ${INSTALL_FLAGS} $( [[ "${VALIDATE}" == "1" ]] && printf %s 'validate' ) +quit
     else
         echo -e "[MLSG] 未配置应用ID，跳过更新检测"
     fi
@@ -53,7 +53,7 @@ fi
 # =========================================================
 
 # 0. 归档并清理旧的游戏原生控制台日志
-CONSOLE_LOG_DIR="/home/container/Pal/Saved/Logs"
+CONSOLE_LOG_DIR="/home/container/Palworld/Pal/Saved/Logs"
 CONSOLE_ARCHIVE_DIR="${CONSOLE_LOG_DIR}/History_Logs"
 mkdir -p "${CONSOLE_LOG_DIR}" "${CONSOLE_ARCHIVE_DIR}"
 
@@ -72,13 +72,13 @@ export WINEDLLOVERRIDES="dwmapi,d3d9,winmm,concrt140,msvcp140,msvcp140_1,msvcp14
 
 # 自动清理遗留的损坏临时存档！防止死锁
 echo "[MLSG] 正在扫描并清理遗留的 .new_tmp 临时文件..."
-if [ -d "/home/container/Pal/Saved/SaveGames" ]; then
-    find /home/container/Pal/Saved/SaveGames -type f -name "*.new_tmp" -exec rm -f {} \;
+if [ -d "/home/container/Palworld/Pal/Saved/SaveGames" ]; then
+    find /home/container/Palworld/Pal/Saved/SaveGames -type f -name "*.new_tmp" -exec rm -f {} \;
     echo "[MLSG] 临时文件清理完毕，确保存档环境干净。"
 fi
 
 # 2. PalDefender 日志归档与后台动态捕捉
-PD_LOG_DIR="/home/container/Pal/Binaries/Win64/PalDefender/Logs"
+PD_LOG_DIR="/home/container/Palworld/Pal/Binaries/Win64/PalDefender/Logs"
 PD_ARCHIVE_DIR="${PD_LOG_DIR}/History_Logs"
 
 echo "[MLSG] 正在清理并归档 PalDefender 历史日志..."
