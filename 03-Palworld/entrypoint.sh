@@ -68,12 +68,12 @@ if [ -f "${CONSOLE_LOG_DIR}/PalServer-Console.log" ]; then
     echo "[MLSG-INIT] 已归档历史控制台日志: PalServer-Console_${TIMESTAMP}.log"
 fi
 
-# 1. 全局注入 Proton 修复参数
+# 1. 全局注入 Proton / Wine 运行环境变量，修复卡死/save覆盖问题
 export PROTON_NO_FSYNC=1
 export PROTON_NO_ESYNC=1
 export WINEFSYNC=0 
 export WINEESYNC=0
-export WINEDLLOVERRIDES="xalia.exe=d,xalia64.exe=d,xalia=d"
+export WINEDLLOVERRIDES="xalia.exe=d,xalia64.exe=d,xalia=d,concrt140=n,b,msvcp140=n,b,msvcp140_1=n,b,msvcp140_2=n,b,msvcp140_atomic_wait=n,b,msvcp140_codecvt_ids=n,b,ucrtbase=n,b,vccorlib140=n,b,vcomp140=n,b,vcruntime140=n,b,vcruntime140_1=n,b"
 
 # [新增] 自动清理遗留的损坏临时存档！防止死锁
 echo "[MLSG-INIT] 正在扫描并清理遗留的 .new_tmp 临时文件..."
