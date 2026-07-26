@@ -68,7 +68,7 @@ export PROTON_NO_FSYNC=1
 export PROTON_NO_ESYNC=1
 export WINEFSYNC=0 
 export WINEESYNC=0
-export WINEDLLOVERRIDES="winmm=n,b;d3d9=n,b;dwmapi=n,b;xalia.exe=d;xalia64.exe=d;xalia=d;concrt140=n,b;msvcp140=n,b;msvcp140_1=n,b;msvcp140_2=n,b;msvcp140_atomic_wait=n,b;msvcp140_codecvt_ids=n,b;ucrtbase=n,b;vccorlib140=n,b;vcomp140=n,b;vcruntime140=n,b;vcruntime140_1=n,b"
+export WINEDLLOVERRIDES="dwmapi,d3d9,winmm,concrt140,msvcp140,msvcp140_1,msvcp140_2,msvcp140_atomic_wait,msvcp140_codecvt_ids,ucrtbase,vccorlib140,vcomp140,vcruntime140,vcruntime140_1=n,b;xalia=d"
 
 # 自动清理遗留的损坏临时存档！防止死锁
 echo "[MLSG] 正在扫描并清理遗留的 .new_tmp 临时文件..."
