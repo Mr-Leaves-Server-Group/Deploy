@@ -83,7 +83,6 @@ USER root
 # 复制你的自定义工具脚本
 COPY 03-Palworld/pal_auto_mods.sh    /usr/local/bin/
 COPY 00-Tools/7zz               /usr/local/bin/
-COPY 03-Palworld/WinFixDLLs.zip /tmp/WinFixDLLs.zip
 
 # 授权可执行
 RUN chmod +x /usr/local/bin/pal_auto_mods.sh \
