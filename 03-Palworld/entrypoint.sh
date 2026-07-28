@@ -74,7 +74,7 @@ fi
     done
 ) &
 
-export RESTAPI_PORT={{REST_API_PORT}} ADMIN_PASSWORD={{ADMIN_PASSWORD}} WINEDLLOVERRIDES="dwmapi=n,b"
+export WINEDLLOVERRIDES="dwmapi=n,b"
 
 # 替换启动变量占位符
 MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
