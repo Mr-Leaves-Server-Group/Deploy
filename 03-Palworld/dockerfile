@@ -10,5 +10,7 @@ COPY 00-Tools/7zz               /usr/local/bin/
 RUN chmod +x /usr/local/bin/pal_auto_mods.sh \
     && chmod +x /usr/local/bin/7zz
 
+ENV WINEDLLOVERRIDES="dwmapi=n,b"
+
 USER container
 WORKDIR /home/container
