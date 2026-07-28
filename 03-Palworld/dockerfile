@@ -1,124 +1,14 @@
-# ---------------------------------------------
-# Steam Proton image
-# ---------------------------------------------
-FROM        debian:trixie-slim
-
-LABEL       author="KenRen" maintainer="ken.ren98@gmail.com"
-
-# 安装全套依赖：原版全部必备包 + 你现有trixie额外新增包，补齐缺失项，配置locale并清理缓存
-RUN dpkg --add-architecture i386 \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        # 原版基础必备
-        wget \
-        iproute2 \
-        gnupg2 \
-        software-properties-common \
-        libncurses5-dev:i386 \
-        libncurses6 \
-        dbus \
-        lib32gcc-s1 \
-        lib32stdc++6 \
-        locales \
-        cabextract \
-        curl \
-        python3 \
-        python3-pip \
-        python3-setuptools \
-        tini \
-        file \
-        pipx \
-        libasound2 \
-        gnutls-bin \
-        gnupg \
-        ca-certificates \
-        nano \
-        libfreetype6 \
-        unzip \
-        lsof \
-        procps \
-        gosu \
-        # 你原有trixie镜像额外添加的包
-        libntlm0 \
-        winbind \
-        xvfb \
-        xauth \
-        libgdiplus \
-        libc6 \
-        alsa-tools \
-        libpulse0 \
-        pulseaudio \
-        libpulse-dev \
-        libasound2-dev \
-        libao-common \
-    # 配置UTF-8 locale，解决PalDefender编码/中文乱码
-    && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
-    && dpkg-reconfigure --frontend=noninteractive locales \
-    # 清理apt缓存，压缩镜像体积
-    && rm -rf /var/lib/apt/lists/*
-
-# 全局环境变量：统一字符集
-ENV LANG=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
-
-# 安装 Pronton-GE 
-RUN         curl -sLOJ "$(curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest | grep browser_download_url | cut -d\" -f4 | grep -v aarch64 | egrep .tar.gz)"
-RUN         tar -xzf GE-Proton*.tar.gz -C /usr/local/bin/ --strip-components=1
-RUN         rm GE-Proton*.*
-
-# 设置 Pronton 环境变量
-ENV STEAM_COMPAT_CLIENT_INSTALL_PATH=/home/container/Steam \
-    STEAM_COMPAT_DATA_PATH=/home/container/.steam/steam/steamapps/compatdata/2394010 \
-    WINEPREFIX=/home/container/Steam/steamapps/compatdata/2394010/pfx \
-    STEAMCMD=/home/container/steamcmd/steamcmd.sh \
-    SERVER_DIR=/home/container \
-    SteamAppId=2394010 \
-    STEAM_APPID=2394010 \
-    SRCDS_APPID=2394010 \
-    WINDOWS_INSTALL=1 \
-    SDL_VIDEODRIVER=dummy \
-    WINEDEBUG=-all 
-
-
-
-# 修复 machine-id 问题
-RUN         rm -f /etc/machine-id
-RUN         dbus-uuidgen --ensure=/etc/machine-id
-RUN         rm /var/lib/dbus/machine-id
-RUN         dbus-uuidgen --ensure
-
-# 安装 Protontricks
-RUN         pipx install protontricks
-
-# 安装 Winetricks
-RUN	        wget -q -O /usr/sbin/winetricks https://raw.githubusercontent.com/pelican-eggs/winetricks/master/src/winetricks \
-            && chmod +x /usr/sbin/winetricks
-
-# 安装 RCON
-RUN         cd /tmp/ \
-            && curl -sSL https://github.com/gorcon/rcon-cli/releases/download/v0.10.3/rcon-0.10.3-amd64_linux.tar.gz > rcon.tar.gz \
-            && tar xvf rcon.tar.gz \
-            && mv rcon-0.10.3-amd64_linux/rcon /usr/local/bin/
+# 直接使用官方基底
+FROM ghcr.io/parkervcp/steamcmd:proton
 
 USER root
 
-# 复制你的自定义工具脚本
 COPY 03-Palworld/pal_auto_mods.sh    /usr/local/bin/
 COPY 00-Tools/7zz               /usr/local/bin/
 
 # 授权可执行
 RUN chmod +x /usr/local/bin/pal_auto_mods.sh \
     && chmod +x /usr/local/bin/7zz
-            
-# 设置container用户和工作目录
-RUN         useradd -m -d /home/container -s /bin/bash container
-USER        container
-ENV         USER=container HOME=/home/container
-WORKDIR     /home/container
 
-STOPSIGNAL  SIGINT
-
-COPY        --chown=container:container 03-Palworld/entrypoint.sh /entrypoint.sh
-RUN         chmod +x /entrypoint.sh
-ENTRYPOINT  ["/usr/bin/tini", "-g", "--"]
-CMD         ["/entrypoint.sh"]
+USER container
+WORKDIR /home/container
