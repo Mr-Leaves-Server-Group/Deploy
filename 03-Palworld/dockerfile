@@ -3,7 +3,7 @@
 # ---------------------------------------------
 FROM        debian:trixie-slim
 
-LABEL       author="Torsten Widmann" maintainer="info@goover.de"
+LABEL       author="Ken Ren" maintainer="ken.ren98@gmail.com"
 
 # Install required packages
 RUN         dpkg --add-architecture i386

@@ -53,7 +53,7 @@ else
 fi
 
 ## PalDefender 日志归档逻辑
-PD_LOG_DIR="/home/container/Palworld/Pal/Binaries/Win64/PalDefender/Logs"
+PD_LOG_DIR="/home/container/Pal/Binaries/Win64/PalDefender/Logs"
 PD_ARCHIVE_DIR="${PD_LOG_DIR}/History_Logs"
 
 echo "[MLSG] 正在归档清理 PalDefender 历史日志..."
