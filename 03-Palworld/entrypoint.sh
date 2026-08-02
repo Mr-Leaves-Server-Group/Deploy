@@ -75,11 +75,26 @@ fi
 ) &
 
 export WINEDLLOVERRIDES="dwmapi=n,b"
+export RESTAPI_PORT={{REST_API_PORT}} ADMIN_PASSWORD={{ADMIN_PASSWORD}}
 
 # 替换启动变量占位符
 MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
 
 # 启动服务
 echo -e "[MLSG] 正在启动游戏服务端..."
-echo -e "[MLSG] :/home/container$ ${MODIFIED_STARTUP}"
+echo -e "[MLSG] 服务器完全启动后，可用以下指令：
+    1. info - 显示服务器信息
+    2. players - 显示在线玩家列表
+    3. settings - 显示服务器设置
+    4. metrics - 显示服务器指标
+    5. kick <玩家id> <原因> - 踢出玩家
+    6. ban <玩家id> <原因> - 封禁玩家
+    7. unban <玩家id> - 解除封禁玩家
+    8. announce <信息> - 服务器公告
+    9. shutdown <秒> <信息> - 关闭服务器
+    10. stop - 立即停止服务器
+    11. save - 保存服务器状态
+    注：发送时不要带<>符号，<>内为参数
+"
+echo -e "[MLSG] 启动命令: /home/container$ ${MODIFIED_STARTUP}"
 eval ${MODIFIED_STARTUP}
