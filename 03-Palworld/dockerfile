@@ -4,14 +4,6 @@
 FROM        ghcr.io/parkervcp/steamcmd:proton
 
 LABEL       author="Ken Ren" maintainer="ken.ren98@gmail.com"
-            
-# 设置用户和工作目录
-RUN         useradd -m -d /home/container -s /bin/bash container
-USER        container
-ENV         USER=container HOME=/home/container
-WORKDIR     /home/container
-
-STOPSIGNAL  SIGINT
 
 # 导入必要的文件和脚本
 COPY        --chown=container:container 03-Palworld/entrypoint.sh /entrypoint.sh
