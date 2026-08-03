@@ -11,6 +11,45 @@ export TZ
 INTERNAL_IP=$(ip route get 1 | awk '{print $(NF-2);exit}')
 export INTERNAL_IP
 
+LOG_DIR="./MLSG-LOG"
+STARTUP_LOG="${LOG_DIR}/startup.log"
+
+# ===================== 日志系统 =====================
+mkdir -p "${LOG_DIR}"
+touch "${STARTUP_LOG}"
+
+log_filter() {
+    sed 's/\x1b\[[0-9;]*[mGKF]//g' >> "${STARTUP_LOG}"
+}
+
+print_line() {
+    local MSG="\e[36m----------------------------------------------------------\e[0m"
+    echo -e "${MSG}"
+    echo -e "${MSG}" | log_filter
+}
+
+print_info() {
+    local MSG="\e[32m[INFO]\e[0m $1"
+    echo -e "${MSG}"
+    echo -e "${MSG}" | log_filter
+}
+
+print_warn() {
+    local MSG="\e[33m[WARNING]\e[0m $1"
+    echo -e "${MSG}"
+    echo -e "${MSG}" | log_filter
+}
+
+print_error() {
+    local MSG="\e[31m[ERROR]\e[0m $1"
+    echo -e "${MSG}"
+    echo -e "${MSG}" | log_filter
+}
+
+print_line
+print_info "菜菜云MLSG 幻兽帕鲁(模组) 服务器启动程序"
+print_line
+
 # Steam Proton 环境变量配置
 if [ -f "/usr/local/bin/proton" ]; then
     if [ ! -z ${SRCDS_APPID} ]; then
@@ -20,10 +59,10 @@ if [ -f "/usr/local/bin/proton" ]; then
         # 修复 protontricks pipx 路径问题
         export PATH=$PATH:/root/.local/bin
     else
-        echo -e "----------------------------------------------------------------------------------"
-        echo -e "[MLSG] 警告!!! Proton 需要 SRCDS_APPID 环境变量，否则无法正常运行，请补充该变量"
-        echo -e "[MLSG] 服务端即将停止运行"
-        echo -e "----------------------------------------------------------------------------------"
+        print_line
+        print_warn "Proton 需要 SRCDS_APPID 环境变量"
+        print_warn "服务端即将停止运行"
+        print_line
         exit 1
         fi
 fi
@@ -33,12 +72,12 @@ cd /home/container || exit 1
 
 ## 自动更新开启时通过 SteamCMD 更新服务端（未设置或等于1视为开启）
 if [ -z ${AUTO_UPDATE} ] || [ "${AUTO_UPDATE}" == "1" ]; then
-    echo -e "[MLSG] 正在检查游戏服务端更新..."
+    print_info "正在检查游戏服务端更新..."
     # 检测应用ID是否配置
     if [ ! -z ${SRCDS_APPID} ]; then
         # 未配置Steam账号时使用匿名账号
         if [ "${STEAM_USER}" == "" ]; then
-            echo -e "[MLSG] 未设置Steam账号，将使用匿名账号登录"
+            print_info "未设置Steam账号，将使用匿名账号登录"
             STEAM_USER=anonymous
             STEAM_PASS=""
             STEAM_AUTH=""
@@ -46,17 +85,17 @@ if [ -z ${AUTO_UPDATE} ] || [ "${AUTO_UPDATE}" == "1" ]; then
         # 执行SteamCMD更新
         ./steamcmd/steamcmd.sh +force_install_dir /home/container +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} $( [[ "${WINDOWS_INSTALL}" == "1" ]] && printf %s '+@sSteamCmdForcePlatformType windows' ) +app_update 1007 +app_update ${SRCDS_APPID} $( [[ -z ${SRCDS_BETAID} ]] || printf %s "-beta ${SRCDS_BETAID}" ) $( [[ -z ${SRCDS_BETAPASS} ]] || printf %s "-betapassword ${SRCDS_BETAPASS}" ) $( [[ -z ${HLDS_GAME} ]] || printf %s "+app_set_config 90 mod ${HLDS_GAME}" ) ${INSTALL_FLAGS} $( [[ "${VALIDATE}" == "1" ]] && printf %s 'validate' ) +quit
     else
-        echo -e "[MLSG] 未配置应用ID，跳过更新检测"
+        print_warn "未配置应用ID，跳过更新检测"
     fi
 else
-    echo -e "[MLSG] 已关闭自动更新，跳过服务端更新检测"
+    print_warn "已关闭自动更新，跳过服务端更新检测"
 fi
 
 ## PalDefender 日志归档逻辑
 PD_LOG_DIR="/home/container/Pal/Binaries/Win64/PalDefender/Logs"
 PD_ARCHIVE_DIR="${PD_LOG_DIR}/History_Logs"
 
-echo "[MLSG] 正在归档清理 PalDefender 历史日志..."
+print_info "正在归档清理 PalDefender 历史日志..."
 if [ -d "$PD_LOG_DIR" ]; then
     mkdir -p "$PD_ARCHIVE_DIR"
     find "$PD_LOG_DIR" -maxdepth 1 -name "*.log" -type f -exec mv {} "$PD_ARCHIVE_DIR/" \;
@@ -66,7 +105,21 @@ fi
     while true; do
         NEW_LOG=$(find "$PD_LOG_DIR" -maxdepth 1 -name "*.log" -type f 2>/dev/null | head -n 1)
         if [ -n "$NEW_LOG" ]; then
-            echo "[MLSG] 检测到反作弊日志文件: $(basename "$NEW_LOG")，开始实时输出日志"
+            print_info "检测到日志文件: $(basename "$NEW_LOG")，开始实时输出日志"
+            print_info "服务器【完全启动后】您可使用以下指令：
+                1. info - 基础信息
+                2. players - 在线列表
+                3. settings - 游戏设置
+                4. metrics - 实时性能
+                5. kick <玩家id> <原因> - 踢出玩家
+                6. ban <玩家id> <原因> - 封禁玩家
+                7. unban <玩家id> - 解封玩家
+                8. announce <信息> - 发送公告
+                9. shutdown <多少秒> <发布信息> - 关闭服务器
+                10. stop - 关闭服务器
+                11. save - 保存游戏
+                注：发送时不要带<>符号，直接用参数替代整个<xxx>
+            "
             tail -F "$NEW_LOG"
             break
         fi
@@ -81,20 +134,6 @@ export RESTAPI_PORT=${REST_API_PORT} ADMIN_PASSWORD=${ADMIN_PASSWORD}
 MODIFIED_STARTUP=$(echo ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
 
 # 启动服务
-echo -e "[MLSG] 正在启动游戏服务端..."
-echo -e "[MLSG] 服务器完全启动后，可用以下指令：
-    1. info - 显示服务器信息
-    2. players - 显示在线玩家列表
-    3. settings - 显示服务器设置
-    4. metrics - 显示服务器指标
-    5. kick <玩家id> <原因> - 踢出玩家
-    6. ban <玩家id> <原因> - 封禁玩家
-    7. unban <玩家id> - 解除封禁玩家
-    8. announce <信息> - 服务器公告
-    9. shutdown <秒> <信息> - 关闭服务器
-    10. stop - 立即停止服务器
-    11. save - 保存服务器状态
-    注：发送时不要带<>符号，<>内为参数
-"
-echo -e "[MLSG] 启动命令: /home/container$ ${MODIFIED_STARTUP}"
+print_info "开始启动游戏..."
+print_info "启动命令: /home/container$ ${MODIFIED_STARTUP}"
 eval ${MODIFIED_STARTUP}
