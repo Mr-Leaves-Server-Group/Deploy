@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "mlsg_ad_fabric",
+	"version": "${version}",
+	"name": "mlsg_ad_fabric",
+	"description": "菜菜云MLSG-服务器列表广告MOD",
+	"authors": [
+		"MLSG"
+	],
+	"contact": {
+		"homepage": "https://mlsg.mr-leaves.com/",
+		"sources": "https://mlsg.mr-leaves.com/"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/mlsg_ad_fabric/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.mr_leaves.mlsg.ad_fabric.mlsg_ad_fabric"
+		]
+	},
+	"mixins": [
+		"mlsg_ad_fabric.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.15.11",
+		"minecraft": "~1.21.1",
+		"java": ">=21"
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "com.mr_leaves.mlsg.ad_fabric.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [],
+	"client": [
+		"ServerSelectionListMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
