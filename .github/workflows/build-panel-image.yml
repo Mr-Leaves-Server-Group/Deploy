@@ -1,0 +1,50 @@
+name: MLSG Panel Image Build and Push
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. 拉官方 panel 完整源码（公仓，无需 token），作为构建上下文基础
+      #    版本可在此处修改，升级时改 v1.15.0.0 为新 tag 即可
+      - name: Clone official panel source
+        run: |
+          git clone --depth 1 --branch v1.15.0.0 \
+            https://github.com/pterodactyl-china/panel.git ./panel-src
+
+      # 2. 拉私有 Eggs/Panel（只含我们改过的文件），用 GH_PAT 认证
+      - name: Clone private Eggs Panel
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${GH_TOKEN}@github.com/Mr-Leaves-Server-Group/Eggs.git" ./eggs
+
+      # 3. 用 Eggs 覆盖官方源码（只覆盖同名改过文件，其余保持官方原版）
+      - name: Overlay eggs onto official source
+        run: |
+          cp -r ./eggs/Panel/. ./panel-src/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./panel-src/
+          file: ./Panel/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: kenren98/mlsg:panel
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
