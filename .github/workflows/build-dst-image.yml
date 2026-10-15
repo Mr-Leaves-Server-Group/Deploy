@@ -22,6 +22,13 @@ jobs:
 
           chmod +x "./02-DST/dst_auto_mods.sh"
 
+          curl -H "Authorization: token ${{ secrets.GH_PAT }}" \
+               -H "Accept: application/vnd.github.raw" \
+               -o "./02-DST/dump_modinfo.lua" \
+               "https://api.github.com/repos/Mr-Leaves-Server-Group/Eggs/contents/02-DST/dump_modinfo.lua?ref=main"
+
+          chmod +x "./02-DST/dump_modinfo.lua"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
