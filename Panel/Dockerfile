@@ -21,8 +21,10 @@ RUN yarn install --frozen-lockfile \
 # ---- 阶段 1：以官方镜像为底座，只叠加前端资源 ----
 FROM pterodactylchina/panel:latest
 
-# 覆盖编译后的前端资源（含模组包页面、模组安装/管理页、侧边栏改版、数据库隐藏等）
-COPY --from=frontend /app/public/assets ./public/assets
+# 覆盖前端静态资源：整体复制 public/（编译产物 assets + 自定义静态目录 worldgen 等）。
+# 之前只 COPY public/assets，不经 webpack 编译的 public/worldgen 图标会漏进不了镜像；
+# 整体覆盖后 favicons/themes/worldgen 等静态目录自动跟随，无需逐目录加 COPY 行。
+COPY --from=frontend /app/public ./public
 
 # 覆盖后端 PHP 改动（模组包本地化接口 + egg 变量自动同步 + Steam 创意工坊代理 + 模组管理）：
 # 官方镜像内置的是未含这些改动的旧代码，必须把改动的控制器/路由/config 覆盖进去，
