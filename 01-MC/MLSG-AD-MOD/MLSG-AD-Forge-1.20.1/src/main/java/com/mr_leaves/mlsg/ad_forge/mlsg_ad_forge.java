@@ -24,7 +24,7 @@ public class mlsg_ad_forge
 
     // 有用的内容
     // 确保你的图片放在 assets/mlsg_mc_ad/textures/gui/icon.png
-    public static final ResourceLocation AD_ICON = new ResourceLocation(MODID, "/textures/gui/mlsg_ad_logo.png");
+    public static final ResourceLocation AD_ICON = new ResourceLocation(MODID, "textures/gui/mlsg_ad_logo.png");
 
     public mlsg_ad_forge () {
         MinecraftForge.EVENT_BUS.register(this);
