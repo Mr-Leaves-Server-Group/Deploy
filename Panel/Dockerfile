@@ -21,6 +21,9 @@ RUN yarn install --frozen-lockfile \
 # ---- 阶段 1：以官方镜像为底座，只叠加前端资源 ----
 FROM pterodactylchina/panel:latest
 
+# 修复 session.upload_progress 漏洞
+COPY .github/docker/www.conf /etc/php83/php-fpm.d/www.conf
+
 # 覆盖前端静态资源：整体复制 public/（编译产物 assets + 自定义静态目录 worldgen 等）。
 # 之前只 COPY public/assets，不经 webpack 编译的 public/worldgen 图标会漏进不了镜像；
 # 整体覆盖后 favicons/themes/worldgen 等静态目录自动跟随，无需逐目录加 COPY 行。
