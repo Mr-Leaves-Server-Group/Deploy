@@ -59,17 +59,7 @@ for i in $(seq 1 60); do
     sleep 1
 done
 
-# 指令提示周期重复显示（游戏日志实时滚屏会刷掉一次性提示；仅控制台，不重复落盘）
-(
-    while true; do
-        sleep 60
-        echo -e "\e[36m=========================================================\e[0m"
-        echo -e "\e[32m[INFO]\e[0m $CMD_HINT"
-        echo -e "\e[36m=========================================================\e[0m"
-    done
-) &
-HINT_LOOP_PID=$!
-
+# 就绪提示只打印一次：Sim paused 之后游戏日志进入低频稳定期（仅玩家进出/存档等），不会被刷掉
 shutdown_started=0
 on_shutdown() {
     if [ "$shutdown_started" = 1 ]; then
@@ -77,7 +67,6 @@ on_shutdown() {
         return
     fi
     shutdown_started=1
-    kill "$HINT_LOOP_PID" 2>/dev/null
     print_info "[游戏启动] 收到停止命令/信号，并行触发两 shard 优雅关闭"
     pkill -TERM -f 'dst_graceful_shard.sh' 2>/dev/null   # 并行：两 wrapper 同时写 c_shutdown()，互不拖累
     kill -TERM "$SUPERVISORD_PID" 2>/dev/null           # supervisord 收尾停 program（wrapper 已防重入）
