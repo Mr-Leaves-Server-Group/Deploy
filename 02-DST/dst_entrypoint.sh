@@ -31,9 +31,9 @@ SUPERVISORD_PID=$!
 print_info "[entrypoint] supervisord 已启动 (pid=$SUPERVISORD_PID)"
 
 # 日志转发：tail -F 等待文件出现并实时输出；sed 只给非 [INFO] 的原始游戏日志行加规则前缀
-# （wrapper 自身日志已带 [INFO] [shard]，不再重复加前缀）
-tail -F "$MASTER_LOG" | sed -u '/^\[INFO\]/!s/^/[INFO] [master] /' &
-tail -F "$CAVES_LOG" | sed -u '/^\[INFO\]/!s/^/[INFO] [caves]  /' &
+# （wrapper 自身日志已带色码 + [INFO] [shard]，行首 ANSI 序列后接 [INFO] 的行不再重复加前缀）
+tail -F "$MASTER_LOG" | sed -u '/^\(\x1b\[[0-9;]*[mGKF]\)*\[INFO\]/!s/^/[INFO] [游戏进程] /' &
+tail -F "$CAVES_LOG" | sed -u '/^\(\x1b\[[0-9;]*[mGKF]\)*\[INFO\]/!s/^/[INFO] [游戏进程] /' &
 print_info "[entrypoint] 日志转发已启动: [master]/[caves] → 面板控制台"
 
 # 等待两 shard 进入 RUNNING 并打印启动状态（program 拉起可见性，supervisord logfile=/dev/null 需自行确认）
