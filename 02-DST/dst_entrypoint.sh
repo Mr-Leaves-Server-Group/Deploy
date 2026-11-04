@@ -47,11 +47,29 @@ CMD_HINT="[游戏启动] 控制台指令：master:xxx → 地面服；caves:xxx 
 
 # 等待两 shard 真正就绪：master/caves 游戏日志出现 "Sim paused"
 # （supervisord RUNNING 只代表进程已拉起，不代表游戏加载完成——真正启动到 Sim paused 才算就绪）
+# 注意：server_log.txt 跨启动保留历史内容，不能全文件 grep（会误匹配上次运行的旧 Sim paused，
+#       导致就绪提示过早打印并被启动日志刷掉）；只检测"本次启动新增"部分：记录起始字节偏移，每轮只 grep 新增
+M_OFF=$(wc -c < "$MASTER_LOG" 2>/dev/null || echo 0)
+C_OFF=$(wc -c < "$CAVES_LOG" 2>/dev/null || echo 0)
 M_READY=0
 C_READY=0
 for i in $(seq 1 60); do
-    [ "$M_READY" = "0" ] && { grep -q 'Sim paused' "$MASTER_LOG" 2>/dev/null && M_READY=1; }
-    [ "$C_READY" = "0" ] && { grep -q 'Sim paused' "$CAVES_LOG" 2>/dev/null && C_READY=1; }
+    if [ "$M_READY" = "0" ]; then
+        M_CUR=$(wc -c < "$MASTER_LOG" 2>/dev/null || echo 0)
+        [ "$M_CUR" -lt "$M_OFF" ] && M_OFF=0      # 文件被截断/轮转：从头看（新文件无历史）
+        if [ "$M_CUR" -gt "$M_OFF" ]; then
+            tail -c +$((M_OFF + 1)) "$MASTER_LOG" 2>/dev/null | grep -q 'Sim paused' && M_READY=1
+            M_OFF=$M_CUR
+        fi
+    fi
+    if [ "$C_READY" = "0" ]; then
+        C_CUR=$(wc -c < "$CAVES_LOG" 2>/dev/null || echo 0)
+        [ "$C_CUR" -lt "$C_OFF" ] && C_OFF=0
+        if [ "$C_CUR" -gt "$C_OFF" ]; then
+            tail -c +$((C_OFF + 1)) "$CAVES_LOG" 2>/dev/null | grep -q 'Sim paused' && C_READY=1
+            C_OFF=$C_CUR
+        fi
+    fi
     if [ "$M_READY" = "1" ] && [ "$C_READY" = "1" ]; then
         print_line
         print_info "[游戏启动] 地面服已就绪（Sim paused）"
