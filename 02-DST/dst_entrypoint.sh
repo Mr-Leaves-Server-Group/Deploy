@@ -1,14 +1,14 @@
 #!/bin/bash
-# dst_entrypoint.sh — 饥荒联机版容器入口（pid1）
-# 职责：拉起 supervisord；把 master/caves 两个 shard 的日志文件实时转发到面板控制台（按日志系统规则加前缀）；
+# dst_entrypoint.sh — 饥荒联机版游戏启动（容器 pid1）
+# 职责：拉起 supervisord；把地面/洞穴两个 shard 的日志文件实时转发到面板控制台（按日志系统规则加前缀）；
 #       面板控制台输入按前缀路由到对应 shard；面板停止（dst_shutdown 命令 / SIGINT/TERM）时
-#       触发优雅关闭并输出过程日志（MLSG 统一日志系统：控制台带色 + MLSG-LOG/dst_entrypoint.log 落盘）。
+#       触发优雅关闭并输出过程日志（MLSG 统一日志系统：控制台带色 + MLSG-LOG/startup.log 落盘）。
 
 # ================================================
 # 统一日志系统（与 dst_auto_mods.sh 同风格）
 # ================================================
 DST_LOG_DIR="${DST_LOG_DIR:-/home/container/MLSG-LOG}"
-LOG_FILE="${DST_LOG_DIR}/dst_entrypoint.log"
+LOG_FILE="${DST_LOG_DIR}/startup.log"
 mkdir -p "${DST_LOG_DIR}"
 touch "${LOG_FILE}"
 
@@ -22,30 +22,32 @@ MASTER_LOG="${MASTER_LOG:-/home/container/DoNotStarveTogether/config/server/Mast
 CAVES_LOG="${CAVES_LOG:-/home/container/DoNotStarveTogether/config/server/Caves/server_log.txt}"
 
 print_line
-print_info "[entrypoint] 饥荒联机版入口启动（容器 pid1）"
-print_info "[entrypoint] 日志文件: ${LOG_FILE}（控制台实时输出 + 落盘）"
+print_info "[游戏启动] 饥荒联机版游戏启动（容器 pid1）"
+print_info "[游戏启动] 日志文件: ${LOG_FILE}（控制台实时输出 + 落盘）"
 print_line
 
 supervisord -c /etc/supervisor/supervisord.conf &
 SUPERVISORD_PID=$!
-print_info "[entrypoint] supervisord 已启动 (pid=$SUPERVISORD_PID)"
+print_info "[游戏启动] supervisord 已启动 (pid=$SUPERVISORD_PID)"
 
 # 日志转发：tail -F 等待文件出现并实时输出；sed 只给非 [INFO] 的原始游戏日志行加规则前缀
 # （wrapper 自身日志已带色码 + [INFO] [shard]，行首 ANSI 序列后接 [INFO] 的行不再重复加前缀）
 tail -F "$MASTER_LOG" | sed -u '/^\(\x1b\[[0-9;]*[mGKF]\)*\[INFO\]/!s/^/[INFO] [游戏进程] /' &
 tail -F "$CAVES_LOG" | sed -u '/^\(\x1b\[[0-9;]*[mGKF]\)*\[INFO\]/!s/^/[INFO] [游戏进程] /' &
-print_info "[entrypoint] 日志转发已启动: [master]/[caves] → 面板控制台"
+print_info "[游戏启动] 日志转发已启动: 地面/洞穴 → 面板控制台"
 
 # 等待两 shard 进入 RUNNING 并打印启动状态（program 拉起可见性，supervisord logfile=/dev/null 需自行确认）
 for i in $(seq 1 30); do
     STATUS=$(supervisorctl -c /etc/supervisor/supervisord.conf -s http://127.0.0.1:9001 status 2>/dev/null | awk '{print $1"="$2}' | tr '\n' ' ')
+    STATUS_DISPLAY=$(printf '%s' "$STATUS" | sed 's/master/地面/g; s/caves/洞穴/g')
     RUNNING_N=$(echo "$STATUS" | grep -o 'RUNNING' | wc -l)
     if [ "$RUNNING_N" -ge 2 ]; then
-        print_info "[entrypoint] 两 shard 已就绪: ${STATUS}"
+        print_info "[游戏启动] 两 shard 已就绪: ${STATUS_DISPLAY}"
+        print_info "[游戏启动] 控制台指令：master:xxx → 地面服；caves:xxx → 洞穴服；不带前缀默认发送到地面服"
         break
     fi
     if [ "$i" -eq 30 ]; then
-        print_info "[entrypoint] 等待 shard 就绪超时，当前状态: ${STATUS:-supervisorctl 无输出}"
+        print_info "[游戏启动] 等待 shard 就绪超时，当前状态: ${STATUS_DISPLAY:-supervisorctl 无输出}"
     fi
     sleep 1
 done
@@ -53,15 +55,15 @@ done
 shutdown_started=0
 on_shutdown() {
     if [ "$shutdown_started" = 1 ]; then
-        print_info "[entrypoint] 重复停止请求，忽略"
+        print_info "[游戏启动] 重复停止请求，忽略"
         return
     fi
     shutdown_started=1
-    print_info "[entrypoint] 收到停止命令/信号，并行触发两 shard 优雅关闭"
+    print_info "[游戏启动] 收到停止命令/信号，并行触发两 shard 优雅关闭"
     pkill -TERM -f 'dst_graceful_shard.sh' 2>/dev/null   # 并行：两 wrapper 同时写 c_shutdown()，互不拖累
     kill -TERM "$SUPERVISORD_PID" 2>/dev/null           # supervisord 收尾停 program（wrapper 已防重入）
     wait "$SUPERVISORD_PID" 2>/dev/null
-    print_info "[entrypoint] supervisord 已退出，容器关闭"
+    print_info "[游戏启动] supervisord 已退出，容器关闭"
     exit 0
 }
 trap on_shutdown INT TERM

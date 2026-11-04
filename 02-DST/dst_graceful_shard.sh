@@ -27,14 +27,14 @@ SERVER_PORT="${SERVER_PORT:-10999}"
 MAX_PLAYERS="${MAX_PLAYERS:-16}"
 
 case "$SHARD" in
-    caves)  GAME_PORT=11000; GAME_SHARD=Caves ;;
-    master) GAME_PORT="$SERVER_PORT"; GAME_SHARD=Master ;;
+    caves)  GAME_PORT=11000; GAME_SHARD=Caves; SHARD_DISPLAY="洞穴" ;;
+    master) GAME_PORT="$SERVER_PORT"; GAME_SHARD=Master; SHARD_DISPLAY="地面" ;;
     *)      print_error "[$SHARD] unknown shard: $SHARD"; exit 1 ;;
 esac
 
 print_line
-print_info "[$SHARD] dst_graceful_shard.sh 启动（bin=$GAME_BIN port=$GAME_PORT shard=$GAME_SHARD）"
-print_info "[$SHARD] 日志文件: ${LOG_FILE}（保存兜底 ${SAVE_TIMEOUT}s）"
+print_info "[$SHARD_DISPLAY] dst_graceful_shard.sh 启动（bin=$GAME_BIN port=$GAME_PORT shard=$GAME_SHARD）"
+print_info "[$SHARD_DISPLAY] 日志文件: ${LOG_FILE}（保存兜底 ${SAVE_TIMEOUT}s）"
 print_line
 
 FIFO="/tmp/dst_${SHARD}.fifo"
@@ -44,16 +44,16 @@ exec 9<>"$FIFO"          # 读写端常开：游戏 open 读端不阻塞，写 f
 
 "$GAME_BIN" -bind_ip 0.0.0.0 -port "$GAME_PORT" -persistent_storage_root /home/container/DoNotStarveTogether -conf_dir config -cluster server -players "$MAX_PLAYERS" -shard "$GAME_SHARD" <"$FIFO" &
 GAME_PID=$!
-print_info "[$SHARD] 游戏进程已启动（pid=$GAME_PID），等待信号..."
+print_info "[$SHARD_DISPLAY] 游戏进程已启动（pid=$GAME_PID），等待信号..."
 
 shutdown_started=0
 on_shutdown() {
     if [ "$shutdown_started" = 1 ]; then
-        print_info "[$SHARD] 重复停止信号，忽略（c_shutdown() 已投递）"
+        print_info "[$SHARD_DISPLAY] 重复停止信号，忽略（c_shutdown() 已投递）"
         return
     fi
     shutdown_started=1
-    print_info "[$SHARD] 收到停止信号（TERM/INT），投递 c_shutdown() 到游戏控制台"
+    print_info "[$SHARD_DISPLAY] 收到停止信号（TERM/INT），投递 c_shutdown() 到游戏控制台"
     printf 'c_shutdown()\n' >&9
 }
 trap on_shutdown TERM INT
@@ -64,12 +64,12 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
         # 保存阶段：轮询等待 + 超时兜底（shell 里无法给 wait 加超时，只能探测）
         waited=$((waited + 1))
         if [ "$waited" -ge "$SAVE_TIMEOUT" ]; then
-            print_error "[$SHARD] 等待游戏保存超过 ${SAVE_TIMEOUT}s，强制结束（存档可能不完整）"
+            print_error "[$SHARD_DISPLAY] 等待游戏保存超过 ${SAVE_TIMEOUT}s，强制结束（存档可能不完整）"
             kill -9 "$GAME_PID" 2>/dev/null
             break
         fi
         if [ $((waited % 10)) -eq 0 ]; then
-            print_warn "[$SHARD] 仍在等待游戏保存（已 ${waited}s / 上限 ${SAVE_TIMEOUT}s）"
+            print_warn "[$SHARD_DISPLAY] 仍在等待游戏保存（已 ${waited}s / 上限 ${SAVE_TIMEOUT}s）"
         fi
         sleep 1
     else
@@ -78,5 +78,5 @@ while kill -0 "$GAME_PID" 2>/dev/null; do
     fi
 done
 wait "$GAME_PID" 2>/dev/null
-print_info "[$SHARD] 游戏进程已退出，wrapper 结束"
+print_info "[$SHARD_DISPLAY] 游戏进程已退出，wrapper 结束"
 exit 0
