@@ -1,8 +1,8 @@
 #!/bin/bash
 # dst_entrypoint.sh — 饥荒联机版游戏启动（容器 pid1）
-# 职责：拉起 supervisord；把地面/洞穴两个 shard 的日志文件实时转发到面板控制台（按日志系统规则加前缀）；
+# 职责：拉起 supervisord；把地面/洞穴两个 shard 的游戏日志实时转发到面板控制台（原样显示，不加前缀）；
 #       面板控制台输入按前缀路由到对应 shard；面板停止（dst_shutdown 命令 / SIGINT/TERM）时
-#       触发优雅关闭并输出过程日志（MLSG 统一日志系统：控制台带色 + MLSG-LOG/startup.log 落盘）。
+#       触发优雅关闭并输出过程日志（MLSG 统一日志系统：仅我们脚本日志走统一格式，控制台带色 + MLSG-LOG/startup.log 落盘）。
 
 # ================================================
 # 统一日志系统（与 dst_auto_mods.sh 同风格）
@@ -30,11 +30,10 @@ supervisord -c /etc/supervisor/supervisord.conf &
 SUPERVISORD_PID=$!
 print_info "[游戏启动] supervisord 已启动 (pid=$SUPERVISORD_PID)"
 
-# 日志转发：tail -F 等待文件出现并实时输出；sed 只给非 [INFO] 的原始游戏日志行加规则前缀
-# （wrapper 自身日志已带色码 + [INFO] [shard]，行首 ANSI 序列后接 [INFO] 的行不再重复加前缀）
-tail -F "$MASTER_LOG" | sed -u '/^\(\x1b\[[0-9;]*[mGKF]\)*\[INFO\]/!s/^/[INFO] [游戏进程] /' &
-tail -F "$CAVES_LOG" | sed -u '/^\(\x1b\[[0-9;]*[mGKF]\)*\[INFO\]/!s/^/[INFO] [游戏进程] /' &
-print_info "[游戏启动] 日志转发已启动: 地面/洞穴 → 面板控制台"
+# 游戏日志转发：tail -F 等待文件出现并实时输出到面板控制台，保持游戏原始格式（不加任何前缀）
+tail -F "$MASTER_LOG" &
+tail -F "$CAVES_LOG" &
+print_info "[游戏启动] 游戏日志转发已启动: 地面/洞穴 → 面板控制台（原样显示）"
 
 # 等待两 shard 进入 RUNNING 并打印启动状态（program 拉起可见性，supervisord logfile=/dev/null 需自行确认）
 for i in $(seq 1 30); do
