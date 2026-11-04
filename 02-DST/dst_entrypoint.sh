@@ -35,21 +35,40 @@ tail -F "$MASTER_LOG" &
 tail -F "$CAVES_LOG" &
 print_info "[游戏启动] 游戏日志转发已启动: 地面/洞穴 → 面板控制台（原样显示）"
 
-# 等待两 shard 进入 RUNNING 并打印启动状态（program 拉起可见性，supervisord logfile=/dev/null 需自行确认）
-for i in $(seq 1 30); do
-    STATUS=$(supervisorctl -c /etc/supervisor/supervisord.conf -s http://127.0.0.1:9001 status 2>/dev/null | awk '{print $1"="$2}' | tr '\n' ' ')
-    STATUS_DISPLAY=$(printf '%s' "$STATUS" | sed 's/master/地面/g; s/caves/洞穴/g')
-    RUNNING_N=$(echo "$STATUS" | grep -o 'RUNNING' | wc -l)
-    if [ "$RUNNING_N" -ge 2 ]; then
-        print_info "[游戏启动] 两 shard 已就绪: ${STATUS_DISPLAY}"
-        print_info "[游戏启动] 控制台指令：master:xxx → 地面服；caves:xxx → 洞穴服；不带前缀默认发送到地面服"
+CMD_HINT="[游戏启动] 控制台指令：master:xxx → 地面服；caves:xxx → 洞穴服；不带前缀默认发送到地面服"
+
+# 等待两 shard 真正就绪：master/caves 游戏日志出现 "Sim paused"
+# （supervisord RUNNING 只代表进程已拉起，不代表游戏加载完成——真正启动到 Sim paused 才算就绪）
+M_READY=0
+C_READY=0
+for i in $(seq 1 60); do
+    [ "$M_READY" = "0" ] && { grep -q 'Sim paused' "$MASTER_LOG" 2>/dev/null && M_READY=1; }
+    [ "$C_READY" = "0" ] && { grep -q 'Sim paused' "$CAVES_LOG" 2>/dev/null && C_READY=1; }
+    if [ "$M_READY" = "1" ] && [ "$C_READY" = "1" ]; then
+        print_line
+        print_info "[游戏启动] 两 shard 已就绪（Sim paused）: 地面/洞穴"
+        print_info "$CMD_HINT"
+        print_line
         break
     fi
-    if [ "$i" -eq 30 ]; then
-        print_info "[游戏启动] 等待 shard 就绪超时，当前状态: ${STATUS_DISPLAY:-supervisorctl 无输出}"
+    if [ "$i" -eq 60 ]; then
+        STATUS=$(supervisorctl -c /etc/supervisor/supervisord.conf -s http://127.0.0.1:9001 status 2>/dev/null | awk '{print $1"="$2}' | tr '\n' ' ')
+        STATUS_DISPLAY=$(printf '%s' "$STATUS" | sed 's/master/地面/g; s/caves/洞穴/g')
+        print_warn "[游戏启动] 60s 内未等到两 shard Sim paused，当前状态: ${STATUS_DISPLAY:-supervisorctl 无输出}"
     fi
     sleep 1
 done
+
+# 指令提示周期重复显示（游戏日志实时滚屏会刷掉一次性提示；仅控制台，不重复落盘）
+(
+    while true; do
+        sleep 60
+        echo -e "\e[36m=========================================================\e[0m"
+        echo -e "\e[32m[INFO]\e[0m $CMD_HINT"
+        echo -e "\e[36m=========================================================\e[0m"
+    done
+) &
+HINT_LOOP_PID=$!
 
 shutdown_started=0
 on_shutdown() {
@@ -58,6 +77,7 @@ on_shutdown() {
         return
     fi
     shutdown_started=1
+    kill "$HINT_LOOP_PID" 2>/dev/null
     print_info "[游戏启动] 收到停止命令/信号，并行触发两 shard 优雅关闭"
     pkill -TERM -f 'dst_graceful_shard.sh' 2>/dev/null   # 并行：两 wrapper 同时写 c_shutdown()，互不拖累
     kill -TERM "$SUPERVISORD_PID" 2>/dev/null           # supervisord 收尾停 program（wrapper 已防重入）
