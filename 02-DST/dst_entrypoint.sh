@@ -28,6 +28,8 @@ trap on_shutdown INT TERM
 
 while IFS= read -r line || sleep 1; do
     case "$line" in
+        dst_shutdown)
+            on_shutdown ;;   # 面板停止命令（egg stop 字段）→ 触发优雅关闭，绕开容器 SIGINT 失效问题
         master:c_*)
             printf '%s\n' "${line#master:}" > /tmp/dst_master.fifo 2>/dev/null ;;
         caves:c_*)
