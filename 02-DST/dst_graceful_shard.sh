@@ -15,7 +15,7 @@ mkdir -p "${DST_LOG_DIR}"
 touch "${LOG_FILE}"
 
 log_filter() { sed 's/\x1b\[[0-9;]*[mGKF]//g' >> "${LOG_FILE}"; }
-print_line()  { local MSG="\e[36m=========================================================\e[0m"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
+print_line()  { local MSG="\e[36m---------------------------------------------------------\e[0m"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
 print_info()  { local MSG="\e[32m[INFO]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
 print_warn()  { local MSG="\e[33m[WARN]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
 print_error() { local MSG="\e[31m[ERROR]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
