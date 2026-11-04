@@ -53,6 +53,7 @@ on_shutdown() {
         return
     fi
     shutdown_started=1
+    print_info "[$SHARD_DISPLAY] 当前时间: $(date)"
     print_info "[$SHARD_DISPLAY] 收到停止信号（TERM/INT），投递 c_shutdown() 到游戏控制台"
     printf 'c_shutdown()\n' >&9
 }

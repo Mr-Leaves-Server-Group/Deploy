@@ -23,6 +23,7 @@ CAVES_LOG="${CAVES_LOG:-/home/container/DoNotStarveTogether/config/server/Caves/
 
 print_line
 print_info "[游戏启动] 饥荒联机版游戏启动（容器 pid1）"
+print_info "[游戏启动] 当前时间: $(date)"
 print_info "[游戏启动] 日志文件: ${LOG_FILE}（控制台实时输出 + 落盘）"
 print_line
 
@@ -45,10 +46,8 @@ for i in $(seq 1 60); do
     [ "$M_READY" = "0" ] && { grep -q 'Sim paused' "$MASTER_LOG" 2>/dev/null && M_READY=1; }
     [ "$C_READY" = "0" ] && { grep -q 'Sim paused' "$CAVES_LOG" 2>/dev/null && C_READY=1; }
     if [ "$M_READY" = "1" ] && [ "$C_READY" = "1" ]; then
-        print_line
         print_info "[游戏启动] 两 shard 已就绪（Sim paused）: 地面/洞穴"
         print_info "$CMD_HINT"
-        print_line
         break
     fi
     if [ "$i" -eq 60 ]; then
@@ -67,6 +66,7 @@ on_shutdown() {
         return
     fi
     shutdown_started=1
+    print_info "[游戏启动] 当前时间: $(date)"
     print_info "[游戏启动] 收到停止命令/信号，并行触发两 shard 优雅关闭"
     pkill -TERM -f 'dst_graceful_shard.sh' 2>/dev/null   # 并行：两 wrapper 同时写 c_shutdown()，互不拖累
     kill -TERM "$SUPERVISORD_PID" 2>/dev/null           # supervisord 收尾停 program（wrapper 已防重入）
