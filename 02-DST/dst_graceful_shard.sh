@@ -4,13 +4,13 @@
 #       收到 SIGTERM 时把 c_shutdown() 写入游戏控制台 fifo，等待游戏保存后退出；
 #       信号只到达本脚本，游戏进程收不到信号，可完整执行保存。
 #       参数 SERVER_PORT/MAX_PLAYERS 由容器环境注入（egg），本脚本读取并组参。
-#       日志：MLSG 统一日志系统（控制台带色 + MLSG-LOG/dst_graceful.log 无色落盘）。
+#       日志：MLSG 统一日志系统（控制台带色 + MLSG-LOG/shutdown.log 无色落盘）。
 
 # ================================================
 # 统一日志系统（与 dst_auto_mods.sh 同风格）
 # ================================================
 DST_LOG_DIR="${DST_LOG_DIR:-/home/container/MLSG-LOG}"
-LOG_FILE="${DST_LOG_DIR}/dst_graceful.log"
+LOG_FILE="${DST_LOG_DIR}/shutdown.log"
 mkdir -p "${DST_LOG_DIR}"
 touch "${LOG_FILE}"
 
