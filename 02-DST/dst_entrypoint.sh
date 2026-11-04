@@ -1,6 +1,6 @@
 #!/bin/bash
-# dst_entrypoint.sh — 容器 pid1
-# 职责：拉起 supervisord；把两个 shard 的日志文件实时转发到面板控制台（带 shard 前缀）；
+# dst_entrypoint.sh — 饥荒联机版容器入口（pid1）
+# 职责：拉起 supervisord；把 master/caves 两个 shard 的日志文件实时转发到面板控制台（按日志系统规则加前缀）；
 #       面板控制台输入按前缀路由到对应 shard；面板停止（dst_shutdown 命令 / SIGINT/TERM）时
 #       触发优雅关闭并输出过程日志（MLSG 统一日志系统：控制台带色 + MLSG-LOG/dst_entrypoint.log 落盘）。
 
@@ -22,17 +22,18 @@ MASTER_LOG="${MASTER_LOG:-/home/container/DoNotStarveTogether/config/server/Mast
 CAVES_LOG="${CAVES_LOG:-/home/container/DoNotStarveTogether/config/server/Caves/server_log.txt}"
 
 print_line
-print_info "[entrypoint] dst_entrypoint.sh 启动（容器 pid1）"
+print_info "[entrypoint] 饥荒联机版入口启动（容器 pid1）"
 print_info "[entrypoint] 日志文件: ${LOG_FILE}（控制台实时输出 + 落盘）"
 print_line
 
 supervisord -c /etc/supervisor/supervisord.conf &
 SUPERVISORD_PID=$!
-print_info "[entrypoint] supervisord started (pid=$SUPERVISORD_PID)"
+print_info "[entrypoint] supervisord 已启动 (pid=$SUPERVISORD_PID)"
 
-# 日志转发：tail -F 等待文件出现并实时输出；sed -u 关缓冲、加 shard 前缀，控制台可区分
-tail -F "$MASTER_LOG" | sed -u 's/^/[master] /' &
-tail -F "$CAVES_LOG" | sed -u 's/^/[caves]  /' &
+# 日志转发：tail -F 等待文件出现并实时输出；sed 只给非 [INFO] 的原始游戏日志行加规则前缀
+# （wrapper 自身日志已带 [INFO] [shard]，不再重复加前缀）
+tail -F "$MASTER_LOG" | sed -u '/^\[INFO\]/!s/^/[INFO] [master] /' &
+tail -F "$CAVES_LOG" | sed -u '/^\[INFO\]/!s/^/[INFO] [caves]  /' &
 print_info "[entrypoint] 日志转发已启动: [master]/[caves] → 面板控制台"
 
 # 等待两 shard 进入 RUNNING 并打印启动状态（program 拉起可见性，supervisord logfile=/dev/null 需自行确认）
