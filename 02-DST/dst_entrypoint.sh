@@ -9,10 +9,15 @@
 # ================================================
 DST_LOG_DIR="${DST_LOG_DIR:-/home/container/MLSG-LOG}"
 LOG_FILE="${DST_LOG_DIR}/startup.log"
+SHUTDOWN_LOG="${DST_LOG_DIR}/shutdown.log"
 mkdir -p "${DST_LOG_DIR}"
 touch "${LOG_FILE}"
+touch "${SHUTDOWN_LOG}"
 
-log_filter() { sed 's/\x1b\[[0-9;]*[mGKF]//g' >> "${LOG_FILE}"; }
+# 落盘过滤：正常走 startup.log；EXTRA_SINK 非空时（关闭段）同时写入 shutdown.log，
+# 保证"关机日志"以 entrypoint 单线块包裹两 wrapper 的关闭过程（并行写不会产生双线）
+EXTRA_SINK=""
+log_filter() { sed 's/\x1b\[[0-9;]*[mGKF]//g' | tee -a "${EXTRA_SINK:-/dev/null}" >> "${LOG_FILE}"; }
 print_line()  { local MSG="\e[36m---------------------------------------------------------\e[0m"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
 print_info()  { local MSG="\e[32m[INFO]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
 print_warn()  { local MSG="\e[33m[WARN]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
@@ -27,6 +32,7 @@ print_info "[游戏启动] 当前时间: $(date)"
 print_info "[游戏启动] 日志文件: ${LOG_FILE}（控制台实时输出 + 落盘）"
 print_line
 
+print_line
 supervisord -c /etc/supervisor/supervisord.conf &
 SUPERVISORD_PID=$!
 print_info "[游戏启动] supervisord 已启动 (pid=$SUPERVISORD_PID)"
@@ -35,6 +41,7 @@ print_info "[游戏启动] supervisord 已启动 (pid=$SUPERVISORD_PID)"
 tail -F "$MASTER_LOG" &
 tail -F "$CAVES_LOG" &
 print_info "[游戏启动] 游戏日志转发已启动: 地面/洞穴 → 面板控制台（原样显示）"
+print_line
 
 CMD_HINT="[游戏启动] 控制台指令：master:xxx → 地面服；caves:xxx → 洞穴服；不带前缀默认发送到地面服"
 
@@ -47,7 +54,8 @@ for i in $(seq 1 60); do
     [ "$C_READY" = "0" ] && { grep -q 'Sim paused' "$CAVES_LOG" 2>/dev/null && C_READY=1; }
     if [ "$M_READY" = "1" ] && [ "$C_READY" = "1" ]; then
         print_line
-        print_info "[游戏启动] 两 shard 已就绪（Sim paused）: 地面/洞穴"
+        print_info "[游戏启动] 地面服已就绪（Sim paused）"
+        print_info "[游戏启动] 洞穴服已就绪（Sim paused）"
         print_info "$CMD_HINT"
         print_line
         break
@@ -68,12 +76,15 @@ on_shutdown() {
         return
     fi
     shutdown_started=1
+    EXTRA_SINK="${SHUTDOWN_LOG}"
+    print_line
     print_info "[游戏启动] 当前时间: $(date)"
     print_info "[游戏启动] 收到停止命令/信号，并行触发两 shard 优雅关闭"
     pkill -TERM -f 'dst_graceful_shard.sh' 2>/dev/null   # 并行：两 wrapper 同时写 c_shutdown()，互不拖累
     kill -TERM "$SUPERVISORD_PID" 2>/dev/null           # supervisord 收尾停 program（wrapper 已防重入）
     wait "$SUPERVISORD_PID" 2>/dev/null
     print_info "[游戏启动] supervisord 已退出，容器关闭"
+    print_line
     exit 0
 }
 trap on_shutdown INT TERM

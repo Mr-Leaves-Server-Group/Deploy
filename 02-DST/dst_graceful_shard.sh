@@ -19,6 +19,9 @@ print_line()  { local MSG="\e[36m-----------------------------------------------
 print_info()  { local MSG="\e[32m[INFO]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
 print_warn()  { local MSG="\e[33m[WARN]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
 print_error() { local MSG="\e[31m[ERROR]\e[0m $1"; echo -e "${MSG}"; echo -e "${MSG}" | log_filter; }
+# 仅控制台输出、不落盘 shutdown.log（wrapper 启动横幅属于"启动过程"，不应混入"关机日志"）
+print_line_c()  { echo -e "\e[36m---------------------------------------------------------\e[0m"; }
+print_info_c()  { echo -e "\e[32m[INFO]\e[0m $1"; }
 
 SHARD="${1:-master}"
 SAVE_TIMEOUT="${SAVE_TIMEOUT:-60}"   # 保存兜底秒数（实测 c_shutdown 到退出仅 3-4s）
@@ -32,10 +35,10 @@ case "$SHARD" in
     *)      print_error "[$SHARD] unknown shard: $SHARD"; exit 1 ;;
 esac
 
-print_line
-print_info "[$SHARD_DISPLAY] dst_graceful_shard.sh 启动（bin=$GAME_BIN port=$GAME_PORT shard=$GAME_SHARD）"
-print_info "[$SHARD_DISPLAY] 日志文件: ${LOG_FILE}（保存兜底 ${SAVE_TIMEOUT}s）"
-print_line
+print_line_c
+print_info_c "[$SHARD_DISPLAY] dst_graceful_shard.sh 启动（bin=$GAME_BIN port=$GAME_PORT shard=$GAME_SHARD）"
+print_info_c "[$SHARD_DISPLAY] 日志文件: ${LOG_FILE}（保存兜底 ${SAVE_TIMEOUT}s）"
+print_line_c
 
 FIFO="/tmp/dst_${SHARD}.fifo"
 rm -f "$FIFO"
@@ -44,7 +47,7 @@ exec 9<>"$FIFO"          # 读写端常开：游戏 open 读端不阻塞，写 f
 
 "$GAME_BIN" -bind_ip 0.0.0.0 -port "$GAME_PORT" -persistent_storage_root /home/container/DoNotStarveTogether -conf_dir config -cluster server -players "$MAX_PLAYERS" -shard "$GAME_SHARD" <"$FIFO" &
 GAME_PID=$!
-print_info "[$SHARD_DISPLAY] 游戏进程已启动（pid=$GAME_PID），等待信号..."
+print_info_c "[$SHARD_DISPLAY] 游戏进程已启动（pid=$GAME_PID），等待信号..."
 
 shutdown_started=0
 on_shutdown() {
