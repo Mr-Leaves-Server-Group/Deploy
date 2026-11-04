@@ -35,6 +35,20 @@ tail -F "$MASTER_LOG" | sed -u 's/^/[master] /' &
 tail -F "$CAVES_LOG" | sed -u 's/^/[caves]  /' &
 print_info "[entrypoint] 日志转发已启动: [master]/[caves] → 面板控制台"
 
+# 等待两 shard 进入 RUNNING 并打印启动状态（program 拉起可见性，supervisord logfile=/dev/null 需自行确认）
+for i in $(seq 1 30); do
+    STATUS=$(supervisorctl -c /etc/supervisor/supervisord.conf -s http://127.0.0.1:9001 status 2>/dev/null | awk '{print $1"="$2}' | tr '\n' ' ')
+    RUNNING_N=$(echo "$STATUS" | grep -o 'RUNNING' | wc -l)
+    if [ "$RUNNING_N" -ge 2 ]; then
+        print_info "[entrypoint] 两 shard 已就绪: ${STATUS}"
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        print_info "[entrypoint] 等待 shard 就绪超时，当前状态: ${STATUS:-supervisorctl 无输出}"
+    fi
+    sleep 1
+done
+
 shutdown_started=0
 on_shutdown() {
     if [ "$shutdown_started" = 1 ]; then
